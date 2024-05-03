@@ -87,7 +87,7 @@ class TorrentClientApp:
 
                 # Add the new nodes
                 for i in range(count_index, len(file_path[:-1])):
-                    folder_node = tree.insert_with_image_and_checkbox(
+                    folder_node = tree.insert(
                         parents_nodes[-1],
                         "end",
                         text=file_path[:-1][i],
@@ -96,7 +96,7 @@ class TorrentClientApp:
                 parents_paths.append(file_path[:-1])
 
                 # Add the file node
-                tree.insert_with_image_and_checkbox(
+                tree.insert(
                     parents_nodes[-1], "end", text=file_path[-1], values=(file_size,)
                 )
 
