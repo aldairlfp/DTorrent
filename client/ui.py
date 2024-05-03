@@ -1,98 +1,7 @@
-# import tkinter as tk
-# from tkinter import filedialog
-# import os
-# import threading
-# import client.bencoder as bencoder
-# # import torrent_parser
-
-# class BitTorrentUI:
-#     def __init__(self, master):
-#         self.master = master
-#         master.title("BitTorrent Downloader")
-
-#         self.label = tk.Label(master, text="Select .torrent files:")
-#         self.label.pack()
-
-#         self.browse_button = tk.Button(master, text="Browse", command=self.browse)
-#         self.browse_button.pack()
-
-#     def browse(self):
-#         filenames = filedialog.askopenfilenames(initialdir=os.getcwd(), title="Select .torrent files", filetypes=(("Torrent files", "*.torrent"), ("All files", "*.*")))
-#         if filenames:
-#             for filename in filenames:
-#                 t = threading.Thread(target=self.download_torrent, args=(filename,))
-#                 t.start()
-
-#     def download_torrent(self, torrent_file):
-#         with open(torrent_file, 'rb') as f:
-#             torrent_data = bencoder.decode(f.read())
-
-#         # torrent = torrent_parser.parse_torrent(torrent_data)
-#         # downloader = torrent_parser.BitTorrentDownloader(torrent)
-#         torrent = torrent_data
-
-#         self.progress_label = tk.Label(self.master, text=b"Downloading: " + torrent[b'info'][b'name'])
-#         self.progress_label.pack()
-
-#         # Change the output directory
-#         output_dir = os.path.join(os.getcwd(), torrent[b'info'][b'name'].decode())
-#         if not os.path.exists(output_dir):
-#             os.makedirs(output_dir)
-
-#         # downloader.start(output_dir)
-#         self.progress_label.config(text="Download complete!")
-
-# def main():
-#     root = tk.Tk()
-#     app = BitTorrentUI(root)
-#     root.mainloop()
-
-# if __name__ == "__main__":
-#     main()
-
-# import tkinter as tk
-# from tkinter import filedialog
-
-# class TorrentClientApp:
-#     def __init__(self, master):
-#         self.master = master
-#         master.title("Torrent Client")
-
-#         self.label = tk.Label(master, text="Welcome to Torrent Client")
-#         self.label.pack()
-
-#         self.select_button = tk.Button(master, text="Select Torrent File", command=self.select_torrent_file)
-#         self.select_button.pack()
-
-#         self.download_button = tk.Button(master, text="Download", command=self.download_torrent)
-#         self.download_button.pack()
-
-#         self.quit_button = tk.Button(master, text="Quit", command=master.quit)
-#         self.quit_button.pack()
-
-#     def select_torrent_file(self):
-#         self.torrent_file_path = filedialog.askopenfilename(filetypes=[("Torrent Files", "*.torrent")])
-#         print("Selected Torrent File:", self.torrent_file_path)
-
-#     def download_torrent(self):
-#         if hasattr(self, 'torrent_file_path'):
-#             print("Downloading Torrent:", self.torrent_file_path)
-#             # Add your download logic here
-#         else:
-#             print("Please select a torrent file first.")
-
-# def main():
-#     root = tk.Tk()
-#     app = TorrentClientApp(root)
-#     root.mainloop()
-
-# if __name__ == "__main__":
-#     main()
-
 import tkinter as tk
 from tkinter import filedialog
 from tkinter import ttk
-from client.bencoder import decode
+from ttkwidgets import CheckboxTreeview
 from client.parser_torrent import parse_torrent_file
 
 class TorrentClientApp:
@@ -109,7 +18,7 @@ class TorrentClientApp:
         self.file_label = tk.Label(master, text="")
         self.file_label.pack()
 
-        self.select_file_button = tk.Button(master, text="Select File", command=self.select_file)
+        self.select_file_button = tk.Button(master, text="Select File", command=self.show_path_tree_torrent)
         self.select_file_button.pack()
 
         self.download_button = tk.Button(master, text="Download", command=self.download_torrent)
