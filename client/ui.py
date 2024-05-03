@@ -127,32 +127,52 @@ class TorrentClientApp:
             self.files = self.torrent_data['info']['files']
             self.file_label.config(text="Files available for download:")
 
-    def select_file(self):
-        self.selected_file_index = tk.simpledialog.askinteger("Select File", "Enter the index of the file you want to download:")
-        if self.selected_file_index is not None:
-            self.selected_file_path = '/'.join(self.files[self.selected_file_index]['path'][0])
-            print("Selected File:", self.selected_file_path)
-            self.show_path_tree()
-
-    def show_path_tree(self):
+    def show_path_tree_torrent(self):
         path_tree_window = tk.Toplevel(self.master)
-        path_tree_window.title("File Path Tree")
+        path_tree_window.title("Torrent File Path Tree")
 
-        tree = ttk.Treeview(path_tree_window)
+        tree = CheckboxTreeview(path_tree_window, columns=['Size'])
         tree.pack(expand=True, fill=tk.BOTH)
+        
+        tree.heading('#0', text='Directory structure', anchor='w')
+        tree.heading('#1', text='File size', anchor='w')
 
         # Add a root node
-        root_node = tree.insert("", "end", text=self.selected_file_path, open=True)
+        root_node = tree.insert("", "end", text=self.torrent_file_path, open=True)
 
-        # Add child nodes
-        path_parts = self.selected_file_path.split('/')
-        parent = root_node
-        for part in path_parts[:-1]:
-            parent = tree.insert(parent, "end", text=part)
+        if 'files' in self.torrent_data['info']:
+            parents_paths = [[]]
+            parents_nodes = [root_node]
+            for file_info in self.files:
+                file_path = file_info['path']
+                file_size = file_info['length']
+                if file_size >= 1024*1024:
+                    file_size = f"{file_size/(1024*1024):.2f} MB"
+                elif file_size >= 1024:
+                    file_size = f"{file_size/1024:.2f} KB"
+                else:
+                    file_size = f"{file_size} B"
+                    
+                # Find the common parent folder
+                count_index = 0
+                while count_index < len(file_path):
+                    if count_index >= len(parents_paths[-1]) or file_path[count_index] != parents_paths[-1][count_index]:
+                        break
+                    count_index += 1
+                    
+                # Remove the nodes that are not common
+                for i in range(len(parents_paths[-1])-1, count_index-1, -1):
+                    parents_nodes.pop()
+                    parents_paths.pop()
+                    
+                # Add the new nodes
+                for i in range(count_index, len(file_path[:-1])):
+                    folder_node = tree.insert(parents_nodes[-1], "end", text=file_path[:-1][i], open=True)
+                    parents_nodes.append(folder_node)
+                parents_paths.append(file_path[:-1])
 
-        # Highlight the last part (file name)
-        tree.insert(parent, "end", text=path_parts[-1], tags="file")
-        tree.tag_configure("file", foreground="blue")
+                # Add the file node
+                tree.insert(parents_nodes[-1], "end", text=file_path[-1], values=(file_size,))
 
     def download_torrent(self):
         if hasattr(self, 'torrent_file_path') and hasattr(self, 'selected_file_path'):
