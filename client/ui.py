@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import filedialog
 from tkinter import ttk
-from ttkwidgets import CheckboxTreeview
+from PIL import Image, ImageTk
 from client.parser_torrent import parse_torrent_file
 
 
@@ -33,9 +33,6 @@ class TorrentClientApp:
 
         self.quit_button = tk.Button(master, text="Quit", command=master.quit)
         self.quit_button.pack()
-
-        self.file_image = tk.PhotoImage(file="file.png")
-        self.folder_image = tk.PhotoImage(file="folder.png")
 
     def select_torrent_file(self):
         self.torrent_file_path = filedialog.askopenfilename(
@@ -90,22 +87,17 @@ class TorrentClientApp:
 
                 # Add the new nodes
                 for i in range(count_index, len(file_path[:-1])):
-                    folder_node = tree.insert(
+                    folder_node = tree.insert_with_image_and_checkbox(
                         parents_nodes[-1],
                         "end",
                         text=file_path[:-1][i],
-                        image=self.folder_image,
                     )
                     parents_nodes.append(folder_node)
                 parents_paths.append(file_path[:-1])
 
                 # Add the file node
-                tree.insert(
-                    parents_nodes[-1],
-                    "end",
-                    text=file_path[-1],
-                    values=(file_size,),
-                    image=self.file_image,
+                tree.insert_with_image_and_checkbox(
+                    parents_nodes[-1], "end", text=file_path[-1], values=(file_size,)
                 )
 
     def download_torrent(self):
@@ -118,8 +110,6 @@ class TorrentClientApp:
 
 
 def set_app_icon(window):
-    from PIL import Image, ImageTk
-
     ico = Image.open("icon.png")
     photo = ImageTk.PhotoImage(ico)
     window.wm_iconphoto(False, photo)
