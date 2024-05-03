@@ -8,9 +8,9 @@ from client.parser_torrent import parse_torrent_file
 class TorrentClientApp:
     def __init__(self, master):
         self.master = master
-        master.title("Torrent Client")
+        master.title("DTorrent Client")
 
-        self.label = tk.Label(master, text="Welcome to Torrent Client")
+        self.label = tk.Label(master, text="Welcome to DTorrent Client")
         self.label.pack()
 
         self.select_button = tk.Button(
@@ -107,8 +107,17 @@ class TorrentClientApp:
             print("Please select a torrent file and file to download first.")
 
 
+def set_icon(window):
+    from PIL import Image, ImageTk
+    ico = Image.open("icon.png")
+    photo = ImageTk.PhotoImage(ico)
+    window.wm_iconphoto(False, photo)
+
+
 def main():
     root = tk.Tk()
+    root.geometry("400x150")
+    set_icon(root)
     app = TorrentClientApp(root)
     root.mainloop()
 
