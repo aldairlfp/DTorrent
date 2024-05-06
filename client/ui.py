@@ -1,67 +1,92 @@
-import tkinter as tk
-from tkinter import filedialog
-from tkinter import ttk
-from PIL import Image, ImageTk
+import sys
+import os
+
+from PyQt5.QtGui import QIcon
+from PyQt5.QtWidgets import (
+    QApplication,
+    QMainWindow,
+    QFileDialog,
+    QTreeWidgetItem,
+)
+from PyQt5.QtCore import Qt
+from PyQt5.uic import loadUi
+from client.resources_rc import *
+
 from client.parser_torrent import parse_torrent_file
 
 
-class TorrentClientApp:
-    def __init__(self, master):
-        self.master = master
-        master.title("DTorrent Client")
-
-        self.label = tk.Label(master, text="Welcome to DTorrent Client")
-        self.label.pack()
-
-        self.select_button = tk.Button(
-            master, text="Select Torrent File", command=self.select_torrent_file
+class TorrentClientApp(QMainWindow):
+    def __init__(self):
+        super(TorrentClientApp, self).__init__()
+        loadUi(
+            "client/ui_designs/main_page.ui",
+            self,
         )
-        self.select_button.pack()
 
-        self.file_label = tk.Label(master, text="")
-        self.file_label.pack()
+        self.actionLoad_torrent.triggered.connect(self.open_file_dialog_to_add_torrent)
 
-        self.select_file_button = tk.Button(
-            master, text="Select File", command=self.show_path_tree_torrent
+        headers = ["#", "Name", "Size"]
+        self.tableProgress.setColumnCount(3)
+        self.tableProgress.setRowCount(1)
+        self.tableProgress.setHorizontalHeaderLabels(headers)
+
+    def open_file_dialog_to_add_torrent(self):
+        options = QFileDialog.Options()
+        options |= QFileDialog.DontUseNativeDialog
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Torrent File",
+            "",
+            "Torrent Files (*.torrent)",
+            options=options,
         )
-        self.select_file_button.pack()
+        torrent_data = parse_torrent_file(file_path)
+        if file_path:
+            self.add_torrent_window = AddTorrentWindow(torrent_data)
+            self.add_torrent_window.comboPathDir.addItem(os.path.dirname(file_path))
+            self.add_torrent_window.show()
 
-        self.download_button = tk.Button(
-            master, text="Download", command=self.download_torrent
-        )
-        self.download_button.pack()
 
-        self.quit_button = tk.Button(master, text="Quit", command=master.quit)
-        self.quit_button.pack()
+class AddTorrentWindow(QMainWindow):
+    def __init__(self, torrent_data) -> None:
+        super(AddTorrentWindow, self).__init__()
+        loadUi("client/ui_designs/add_torrent.ui", self)
 
-    def select_torrent_file(self):
-        self.torrent_file_path = filedialog.askopenfilename(
-            filetypes=[("Torrent Files", "*.torrent")]
-        )
-        print("Selected Torrent File:", self.torrent_file_path)
-        self.torrent_data = parse_torrent_file(self.torrent_file_path)
-        if "files" in self.torrent_data["info"]:
-            self.files = self.torrent_data["info"]["files"]
-            self.file_label.config(text="Files available for download:")
+        # Connect the button to the function to open file dialog
+        self.buttonPathDir.clicked.connect(self.open_file_dialog_to_change_path)
 
-    def show_path_tree_torrent(self):
-        path_tree_window = tk.Toplevel(self.master)
-        path_tree_window.title("Torrent File Path Tree")
+        self.treeTorrentFile.setHeaderLabels(["Name", "Type", "Size"])
+        self.show_torrent_data(torrent_data)
+        self.lineNameTorrent.setText(torrent_data["info"]["name"])
 
-        tree = CheckboxTreeview(path_tree_window, columns=["Size"])
-        tree.pack(expand=True, fill=tk.BOTH)
+    def handleItemClicked(self, item, column):
+        if isinstance(item, QTreeWidgetItem):
+            # Toggle the checkbox state when an item is clicked
+            checkbox = self.itemWidget(item, 0)
+            if checkbox:
+                checkbox.setChecked(not checkbox.isChecked())
 
-        tree.heading("#0", text="Directory structure", anchor="w")
-        tree.heading("#1", text="File size", anchor="w")
+    def open_file_dialog_to_change_path(self):
+        options = QFileDialog.Options()
+        options |= QFileDialog.DontUseNativeDialog
+        folder_path = QFileDialog.getExistingDirectory(self, "Select Folder")
+        if folder_path:
+            self.comboPathDir.addItem(folder_path)
+            self.comboPathDir.setCurrentText(folder_path)
 
-        # Add a root node
-        root_node = tree.insert("", "end", text=self.torrent_file_path, open=True)
+    def show_torrent_data(self, torrent_data):
+        # Add root node
+        self.treeTorrentFile.clear()
+        root_item = QTreeWidgetItem(self.treeTorrentFile)
+        root_item.setText(0, torrent_data["info"]["name"])
+        root_item.setCheckState(0, Qt.Checked)
 
-        if "files" in self.torrent_data["info"]:
-            parents_paths = [[]]
-            parents_nodes = [root_node]
-            for file_info in self.files:
-                file_path = file_info["path"]
+        if "files" in torrent_data["info"]:
+            files = torrent_data["info"]["files"]
+            parent_paths = [[]]
+            items = [root_item]
+            for file_info in files:
+                file_name = file_info["path"][-1]
                 file_size = file_info["length"]
                 if file_size >= 1024 * 1024:
                     file_size = f"{file_size/(1024*1024):.2f} MB"
@@ -69,59 +94,76 @@ class TorrentClientApp:
                     file_size = f"{file_size/1024:.2f} KB"
                 else:
                     file_size = f"{file_size} B"
+                file_type = file_info["path"][-1].split(".")[-1]
 
                 # Find the common parent folder
                 count_index = 0
-                while count_index < len(file_path):
+                while count_index < len(file_info["path"]):
                     if (
-                        count_index >= len(parents_paths[-1])
-                        or file_path[count_index] != parents_paths[-1][count_index]
+                        count_index >= len(parent_paths[-1])
+                        or file_info["path"][count_index]
+                        != parent_paths[-1][count_index]
                     ):
                         break
                     count_index += 1
 
                 # Remove the nodes that are not common
-                for i in range(len(parents_paths[-1]) - 1, count_index - 1, -1):
-                    parents_nodes.pop()
-                    parents_paths.pop()
+                for i in range(len(parent_paths[-1]) - 1, count_index - 1, -1):
+                    parent_paths.pop()
+                    items.pop()
 
                 # Add the new nodes
-                for i in range(count_index, len(file_path[:-1])):
-                    folder_node = tree.insert(
-                        parents_nodes[-1],
-                        "end",
-                        text=file_path[:-1][i],
-                    )
-                    parents_nodes.append(folder_node)
-                parents_paths.append(file_path[:-1])
+                directory = file_info["path"][:-1]
+                for i in range(count_index, len(directory)):
+                    parent_paths.append(directory)
+                    item = QTreeWidgetItem(items[-1])
+                    item.setText(0, directory[i])
+                    item.setCheckState(0, Qt.Checked)
+                    item.setIcon(1, QIcon("client/ui_designs/icons/folder.png"))
+                    items.append(item)
 
                 # Add the file node
-                tree.insert(
-                    parents_nodes[-1], "end", text=file_path[-1], values=(file_size,)
-                )
+                item = QTreeWidgetItem(items[-1])
+                item.setText(0, file_name)
+                item.setText(1, file_type)
+                item.setText(2, file_size)
+                item.setCheckState(0, Qt.Checked)
+                item.setIcon(1, QIcon("client/ui_designs/icons/file.png"))
 
-    def download_torrent(self):
-        if hasattr(self, "torrent_file_path") and hasattr(self, "selected_file_path"):
-            download_path = filedialog.askdirectory(title="Select Download Location")
-            print("Download Location:", download_path)
-            # Add your download logic here
         else:
-            print("Please select a torrent file and file to download first.")
+            file_name = torrent_data["info"]["name"]
+            file_size = torrent_data["info"]["length"]
+            if file_size >= 1024 * 1024:
+                file_size = f"{file_size/(1024*1024):.2f} MB"
+            elif file_size >= 1024:
+                file_size = f"{file_size/1024:.2f} KB"
+            else:
+                file_size = f"{file_size} B"
+            file_type = file_name.split(".")[-1]
+            item = QTreeWidgetItem(root_item)
+            item.setText(0, file_name)
+            item.setText(1, file_type)
+            item.setText(2, file_size)
 
+    def populateTreeWidget(self, file_paths):
+        for filepath in file_paths:
+            self.addFilePathWithCheckBox(filepath)
 
-def set_app_icon(window):
-    ico = Image.open("icon.png")
-    photo = ImageTk.PhotoImage(ico)
-    window.wm_iconphoto(False, photo)
+    def addFilePathWithCheckBox(self, filepath):
+        parts = filepath.split(os.path.sep)
+        parent_item = self.treeTorrentFile.invisibleRootItem()
+        for part in parts[:-1]:
+            child_item = self.treeTorrentFile.findChild(QTreeWidgetItem, [part])
+            if not child_item:
+                child_item = QTreeWidgetItem(parent_item, [part])
+            parent_item = child_item
+        item = QTreeWidgetItem(parent_item, [parts[-1]])
+        item.setCheckState(0, Qt.Checked)
+        item.setData(0, Qt.UserRole, filepath)
 
 
 def main():
-    root = tk.Tk()
-    root.geometry("400x150")
-    set_app_icon(root)
-    app = TorrentClientApp(root)
-    root.mainloop()
-
-
-if __name__ == "__main__":
-    main()
+    app = QApplication(sys.argv)
+    window = TorrentClientApp()
+    window.show()
+    return app.exec_()
