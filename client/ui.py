@@ -119,7 +119,7 @@ class AddTorrentWindow(QMainWindow):
                     item = QTreeWidgetItem(items[-1])
                     item.setText(0, directory[i])
                     item.setCheckState(0, Qt.Checked)
-                    item.setIcon(1, QIcon("client/ui_designs/icons/folder.png"))
+                    item.setIcon(0, QIcon("client/ui_designs/icons/folder.png"))
                     items.append(item)
 
                 # Add the file node
@@ -128,7 +128,7 @@ class AddTorrentWindow(QMainWindow):
                 item.setText(1, file_type)
                 item.setText(2, file_size)
                 item.setCheckState(0, Qt.Checked)
-                item.setIcon(1, QIcon("client/ui_designs/icons/file.png"))
+                item.setIcon(0, QIcon("client/ui_designs/icons/file.png"))
 
         else:
             file_name = torrent_data["info"]["name"]
