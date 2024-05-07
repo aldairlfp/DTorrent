@@ -56,6 +56,7 @@ class AddTorrentWindow(QMainWindow):
         self.buttonPathDir.clicked.connect(self.open_file_dialog_to_change_path)
 
         self.treeTorrentFile.setHeaderLabels(["Name", "Type", "Size"])
+        self.treeTorrentFile.header().resizeSection(0, 200)
         self.show_torrent_data(torrent_data)
         self.lineNameTorrent.setText(torrent_data["info"]["name"])
 
