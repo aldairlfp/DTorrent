@@ -1,7 +1,7 @@
 import sys
 import os
 
-from PyQt5.QtGui import QIcon
+from PyQt5.QtGui import QIcon, QStandardItemModel
 from PyQt5.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -59,13 +59,6 @@ class AddTorrentWindow(QMainWindow):
         self.show_torrent_data(torrent_data)
         self.lineNameTorrent.setText(torrent_data["info"]["name"])
 
-    def handleItemClicked(self, item, column):
-        if isinstance(item, QTreeWidgetItem):
-            # Toggle the checkbox state when an item is clicked
-            checkbox = self.itemWidget(item, 0)
-            if checkbox:
-                checkbox.setChecked(not checkbox.isChecked())
-
     def open_file_dialog_to_change_path(self):
         options = QFileDialog.Options()
         options |= QFileDialog.DontUseNativeDialog
@@ -80,6 +73,7 @@ class AddTorrentWindow(QMainWindow):
         root_item = QTreeWidgetItem(self.treeTorrentFile)
         root_item.setText(0, torrent_data["info"]["name"])
         root_item.setCheckState(0, Qt.Checked)
+        root_item.setFlags(root_item.flags() | Qt.ItemFlag.ItemIsTristate)
 
         if "files" in torrent_data["info"]:
             files = torrent_data["info"]["files"]
@@ -120,6 +114,7 @@ class AddTorrentWindow(QMainWindow):
                     item.setText(0, directory[i])
                     item.setCheckState(0, Qt.Checked)
                     item.setIcon(0, QIcon("client/ui_designs/icons/folder.png"))
+                    item.setFlags(item.flags() | Qt.ItemFlag.ItemIsTristate)
                     items.append(item)
 
                 # Add the file node
@@ -144,10 +139,6 @@ class AddTorrentWindow(QMainWindow):
             item.setText(0, file_name)
             item.setText(1, file_type)
             item.setText(2, file_size)
-
-    def populateTreeWidget(self, file_paths):
-        for filepath in file_paths:
-            self.addFilePathWithCheckBox(filepath)
 
     def addFilePathWithCheckBox(self, filepath):
         parts = filepath.split(os.path.sep)
