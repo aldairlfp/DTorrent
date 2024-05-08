@@ -1,8 +1,8 @@
 """
 A simple bencoding implementation in pure Python.
->>> encode(42) == b'i42e'
+>>> bencode(42) == b'i42e'
 True
->>> decode(b'i42e')
+>>> bdecode(b'i42e')
 42
 """
 
@@ -11,7 +11,7 @@ import string
 import itertools as it
 
 
-def encode(obj):
+def bencode(obj):
     """
     bencodes given object. Given object should be a int,
     bytes, list or dict. If a str is given, it'll be
@@ -32,20 +32,17 @@ def encode(obj):
     elif isinstance(obj, bytes):
         return str(len(obj)).encode() + b":" + obj
     elif isinstance(obj, str):
-        return encode(obj.encode("ascii"))
+        return bencode(obj.encode("ascii"))
     elif isinstance(obj, list):
-        return b"l" + b"".join(map(encode, obj)) + b"e"
+        return b"l" + b"".join(map(bencode, obj)) + b"e"
     elif isinstance(obj, dict):
-        # if all(isinstance(i, bytes) for i in obj.keys()):
         items = list(obj.items())
         #     items.sort()
-        return b"d" + b"".join(map(encode, it.chain(*items))) + b"e"
-        # else:
-        #     raise ValueError("dict keys should be bytes")
+        return b"d" + b"".join(map(bencode, it.chain(*items))) + b"e"
     raise ValueError("Allowed types: int, bytes, list, dict; not %s", type(obj))
 
 
-def decode(s):
+def bdecode(s):
     """
     Decodes given bencoded bytes object.
 
