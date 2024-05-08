@@ -28,7 +28,7 @@ class TorrentClientApp(QMainWindow):
 
         headers = ["#", "Name", "Size"]
         self.tableProgress.setColumnCount(3)
-        self.tableProgress.setRowCount(1)
+        self.tableProgress.setRowCount(0)
         self.tableProgress.setHorizontalHeaderLabels(headers)
 
     def open_file_dialog_to_add_torrent(self):
@@ -77,6 +77,9 @@ class AddTorrentWindow(QMainWindow):
         item1 = QTableWidgetItem(str(row_count))
         item2 = QTableWidgetItem(self.lineNameTorrent.text())
         item3 = QTableWidgetItem("1gb")
+        item1.setTextAlignment(Qt.AlignCenter)
+        item2.setTextAlignment(Qt.AlignCenter)
+        item3.setTextAlignment(Qt.AlignCenter)
         self.main_window.tableProgress.setItem(row_count - 1, 0, item1)
         self.main_window.tableProgress.setItem(row_count - 1, 1, item2)
         self.main_window.tableProgress.setItem(row_count - 1, 2, item3)
