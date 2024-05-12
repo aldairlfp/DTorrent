@@ -19,6 +19,7 @@ from client.resources_rc import *
 
 from client.parser_torrent import parse_torrent_file
 from client.torrent import Torrent
+from client.utils import transform_length
 
 
 class TorrentClientApp(QMainWindow):
@@ -58,6 +59,7 @@ class AddTorrentWindow(QMainWindow):
     def __init__(self, torrent: Torrent, main_window: TorrentClientApp) -> None:
         super(AddTorrentWindow, self).__init__()
         self.main_window: TorrentClientApp = main_window
+        self.torrent: Torrent = torrent
         loadUi("client/ui_designs/add_torrent.ui", self)
 
         # Connect the button to the function to open file dialog
@@ -85,7 +87,10 @@ class AddTorrentWindow(QMainWindow):
 
         item1 = QTableWidgetItem(str(row_count))
         item2 = QTableWidgetItem(self.lineNameTorrent.text())
-        item3 = QTableWidgetItem("1gb")
+
+        checked_elements = self.get_checked_elements()
+        self.torrent.selected_files(checked_elements)
+        item3 = QTableWidgetItem(transform_length(self.torrent.selected_total_length))
 
         delegate = ProgressDelegate(self.main_window.tableProgress)
         self.main_window.tableProgress.setItemDelegateForColumn(3, delegate)
@@ -103,6 +108,22 @@ class AddTorrentWindow(QMainWindow):
 
         self.close()
 
+    def get_checked_elements(self):
+        checked_items = []
+
+        def recurse(parent_item, path):
+            for i in range(parent_item.childCount()):
+                child = parent_item.child(i)
+                grand_children = child.childCount()
+                if grand_children > 0:
+                    recurse(child, f"{path}/{child.text(0)}")
+                else:
+                    if child.checkState(0) == Qt.Checked:
+                        checked_items.append(path + "/" + child.text(0))
+
+        recurse(self.treeTorrentFile.invisibleRootItem(), "")
+        return checked_items
+
     def show_torrent_data(self, torrent: Torrent):
         # Add root node
         self.treeTorrentFile.clear()
@@ -118,12 +139,7 @@ class AddTorrentWindow(QMainWindow):
             for file_info in files:
                 file_name = file_info["path"][-1]
                 file_size = file_info["length"]
-                if file_size >= 1024 * 1024:
-                    file_size = f"{file_size/(1024*1024):.2f} MB"
-                elif file_size >= 1024:
-                    file_size = f"{file_size/1024:.2f} KB"
-                else:
-                    file_size = f"{file_size} B"
+                file_size = transform_length(file_size)
                 file_type = file_info["path"][-1].split(".")[-1]
 
                 # Find the common parent folder
@@ -164,12 +180,7 @@ class AddTorrentWindow(QMainWindow):
         else:
             file_name = torrent.file_names
             file_size = torrent.total_length
-            if file_size >= 1024 * 1024:
-                file_size = f"{file_size/(1024*1024):.2f} MB"
-            elif file_size >= 1024:
-                file_size = f"{file_size/1024:.2f} KB"
-            else:
-                file_size = f"{file_size} B"
+            file_size = transform_length(file_size)
             file_type = file_name.split(".")[-1]
             item = QTreeWidgetItem(root_item)
             item.setText(0, file_name)

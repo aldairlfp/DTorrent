@@ -32,9 +32,16 @@ class Torrent:
         self.peer_id = self.generate_peer_id()
         self.announce_list = self.get_trakers()
         self.name = self.torrent_file["info"]["name"]
+        self.init_files()
         self.number_of_pieces = math.ceil(self.total_length / self.piece_length)
         logging.debug(self.announce_list)
         logging.debug(self.file_names)
+
+        self.selected_file_names = []
+        self.selected_total_length: int = 0
+
+        assert len(self.file_names) > 0
+        assert self.total_length > 0
 
         return self
 
@@ -42,14 +49,8 @@ class Torrent:
         root = self.torrent_file["info"]["name"]
 
         if "files" in self.torrent_file["info"]:
-            if not os.path.exists(root):
-                os.mkdir(root, 0o0766)
-
             for file in self.torrent_file["info"]["files"]:
                 path_file = os.path.join(root, *file["path"])
-
-                if not os.path.exists(os.path.dirname(path_file)):
-                    os.makedirs(os.path.dirname(path_file))
 
                 self.file_names.append({"path": path_file, "length": file["length"]})
                 self.total_length += file["length"]
@@ -59,6 +60,16 @@ class Torrent:
                 {"path": root, "length": self.torrent_file["info"]["length"]}
             )
             self.total_length = self.torrent_file["info"]["length"]
+
+    def selected_files(self, checked_elements):
+        for el in checked_elements:
+            index = 0
+            for file in self.file_names:
+                if el[1:] == file["path"]:
+                    self.selected_file_names += [index]
+                    self.selected_total_length += file["length"]
+                    break
+                index += 1
 
     def get_trakers(self):
         if "announce-list" in self.torrent_file:
