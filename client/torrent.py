@@ -32,14 +32,14 @@ class Torrent:
         self.peer_id = self.generate_peer_id()
         self.announce_list = self.get_trakers()
         self.name = self.torrent_file["info"]["name"]
-        self.comment = self.torrent_file['comment']
+        self.comment = self.torrent_file["comment"]
         self.init_files()
         self.number_of_pieces = math.ceil(self.total_length / self.piece_length)
         logging.debug(self.announce_list)
         logging.debug(self.file_names)
 
-        self.selected_file_names = []
-        self.selected_total_length: int = 0
+        self.selected_files = [index for index in range(len(self.file_names))]
+        self.selected_total_length: int = self.total_length
 
         assert len(self.file_names) > 0
         assert self.total_length > 0
@@ -62,17 +62,9 @@ class Torrent:
             )
             self.total_length = self.torrent_file["info"]["length"]
 
-    def selected_files(self, checked_elements):
+    def update_selected_files(self, checked_elements):
         self.selected_total_length = 0
-        self.selected_file_names = []
-        for el in checked_elements:
-            index = 0
-            for file in self.file_names:
-                if el[1:] == file["path"]:
-                    self.selected_file_names += [index]
-                    self.selected_total_length += file["length"]
-                    break
-                index += 1
+        self.selected_files = checked_elements
 
     def get_trakers(self):
         if "announce-list" in self.torrent_file:
