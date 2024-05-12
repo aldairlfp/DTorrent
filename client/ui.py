@@ -72,6 +72,11 @@ class AddTorrentWindow(QMainWindow):
 
         self.buttonOKAddTorrent.clicked.connect(self.add_torrent_to_main_window)
 
+        self.label_5.setText(self.torrent.name)
+        self.label_6.setText(self.torrent.comment)
+        self.label_7.setText(transform_length(self.torrent.total_length))
+        self.treeTorrentFile.clicked.connect(self.torrent_info)
+
     def open_file_dialog_to_change_path(self):
         options = QFileDialog.Options()
         options |= QFileDialog.DontUseNativeDialog
@@ -107,6 +112,11 @@ class AddTorrentWindow(QMainWindow):
         self.main_window.tableProgress.setItem(row_count - 1, 3, item4)
 
         self.close()
+
+    def torrent_info(self):
+        checked_elements = self.get_checked_elements()
+        self.torrent.selected_files(checked_elements)
+        self.label_7.setText(transform_length(self.torrent.selected_total_length))
 
     def get_checked_elements(self):
         checked_items = []

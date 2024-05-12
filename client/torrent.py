@@ -32,6 +32,7 @@ class Torrent:
         self.peer_id = self.generate_peer_id()
         self.announce_list = self.get_trakers()
         self.name = self.torrent_file["info"]["name"]
+        self.comment = self.torrent_file['comment']
         self.init_files()
         self.number_of_pieces = math.ceil(self.total_length / self.piece_length)
         logging.debug(self.announce_list)
@@ -62,6 +63,8 @@ class Torrent:
             self.total_length = self.torrent_file["info"]["length"]
 
     def selected_files(self, checked_elements):
+        self.selected_total_length = 0
+        self.selected_file_names = []
         for el in checked_elements:
             index = 0
             for file in self.file_names:
