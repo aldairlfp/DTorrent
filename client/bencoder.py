@@ -36,10 +36,8 @@ def bencode(obj):
     elif isinstance(obj, list):
         return b"l" + b"".join(map(bencode, obj)) + b"e"
     elif isinstance(obj, dict):
-        items = list(obj.items())
-        #     items.sort()
+        items = [(key, value) for key, value in obj.items() if value is not None]
         return b"d" + b"".join(map(bencode, it.chain(*items))) + b"e"
-    raise ValueError("Allowed types: int, bytes, list, dict; not %s", type(obj))
 
 
 def bdecode(s):
