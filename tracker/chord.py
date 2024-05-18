@@ -14,7 +14,7 @@ REMOVE_NODE = 7
 
 
 class ChordNodeReference:
-    def __init__(self, id: int, ip: str, port: int = 8080):
+    def __init__(self, id: int, ip: str, port: int = 8001):
         self.id = id
         self.ip = ip
         self.port = port
@@ -59,7 +59,7 @@ class ChordNodeReference:
 
 
 class ChordNode:
-    def __init__(self, id: int, ip: str, port: int = 8080, m: int = 8):
+    def __init__(self, id: int, ip: str, port: int = 8001, m: int = 8):
         self.id = id
         self.ip = ip
         self.port = port
@@ -105,11 +105,12 @@ class ChordNode:
                 self.succ.notify(self.id)
             if not self.succ and self.pred:
                 self.succ = self.pred
+
+            print(f"succ is {self.succ} and pred is {self.pred}")
             time.sleep(10)
 
     def notify(self, node: "ChordNodeReference"):
         """Exterior call to stabilize network."""
-        ## Hint: Missing extra condition
         print(f"node {node.id} notified me")
         if not self.pred or self.pred.id != node.id:
             self.pred = node
@@ -124,7 +125,6 @@ class ChordNode:
             while True:
                 conn, addr = s.accept()
                 data = conn.recv(1024).decode().split(",")
-
                 data_resp = None
                 option = int(data[0])
 
