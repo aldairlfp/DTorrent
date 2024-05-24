@@ -15,8 +15,8 @@ class TrackerServer:
         self.torrents = []
         self.tracker_id = 0
 
-    def join(self, o_node: tuple):
-        self.node.join(ChordNodeReference(o_node[0], o_node[1], 8001))
+    def join(self, node_id, node_ip, node_port):
+        self.node.join(ChordNodeReference(node_id, node_ip, node_port))
 
     def add_torrent(self, torrent):
         self.torrents.append(torrent)

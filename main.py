@@ -1,12 +1,14 @@
-# import client.bencoder as bencoder
-
-# f = open("razdacha-ne-suschestvuet.torrent", "rb")
-# d = bencoder.decode(f.read())
-# del d[b"info"][b"pieces"] # That's a long hash
-# from pprint import pprint
-# pprint(d)
-
+import socket
 import sys
-import client.ui as ui
 
-sys.exit(ui.main())
+from tracker.chord import getShaRepr
+from tracker.tracker_server import TrackerServer
+
+if __name__ == "__main__":
+    ip = socket.gethostbyname(socket.gethostname())
+    tracker = TrackerServer(ip, (ip, 8080))
+    if len(sys.argv) >= 2:
+        other_ip = sys.argv[1]
+        tracker.join(other_ip, other_ip, tracker.node.port)
+
+    tracker.run()
