@@ -6,6 +6,7 @@ import logging
 import os
 
 from client.bencoder import bencode, bdecode
+from client.parser_torrent import parse_torrent_file
 
 
 class Torrent(object):
@@ -21,15 +22,15 @@ class Torrent(object):
         self.number_of_pieces: int = 0
         self.name: str = ""
         self.selected_files = []
-        self.selected_total_length
+        self.selected_total_length = 0
 
     def load_from_path(self, path):
         with open(path, "rb") as file:
-            contents = bdecode(file)
+            contents = parse_torrent_file(path)
 
         self.torrent_file = contents
-        self.piece_length = self.torrent_file["info"]["piece length"]
-        self.pieces = self.torrent_file["info"]["pieces"]
+        self.piece_length = self.torrent_file["info"]["piece_length"]
+        self.pieces = self.torrent_file["info"]["files"]
         raw_info_hash = bencode(self.torrent_file["info"])
         self.info_hash = hashlib.sha1(raw_info_hash).digest()
         self.peer_id = self.generate_peer_id()
@@ -60,13 +61,15 @@ class Torrent(object):
                 {"path": root, "length": self.torrent_file["info"]["length"]}
             )
             self.total_length = self.torrent_file["info"]["length"]
-            
+
     def select_files(self, selected_files):
         self.selected_files = selected_files
         self.selected_total_length = 0
         for file in self.selected_files:
             self.selected_total_length += self.file_names[file]["length"]
-        self.number_of_pieces = math.ceil(self.selected_total_length / self.piece_length)
+        self.number_of_pieces = math.ceil(
+            self.selected_total_length / self.piece_length
+        )
 
     def get_trakers(self):
         if "announce-list" in self.torrent_file:
