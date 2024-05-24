@@ -1,3 +1,4 @@
+import random
 import socket
 import threading
 import sys
@@ -84,9 +85,6 @@ class ChordNode:
         self.next = 0  # Finger table index to fix next
 
         threading.Thread(
-            target=self.stabilize, daemon=True
-        ).start()  # Start stabilize thread
-        threading.Thread(
             target=self.fix_fingers, daemon=True
         ).start()  # Start fix fingers thread
         threading.Thread(
@@ -95,6 +93,9 @@ class ChordNode:
         threading.Thread(
             target=self.start_server, daemon=True
         ).start()  # Start server thread
+        threading.Thread(
+            target=self.stabilize, daemon=True
+        ).start()  # Start stabilize thread
 
     def _inbetween(self, k: int, start: int, end: int) -> bool:
         """Check if k is in the interval (start, end]."""
@@ -133,14 +134,13 @@ class ChordNode:
         """Regular check for correct Chord structure."""
         while True:
             try:
-                if self.succ.id != self.id:
-                    print("stabilize")
-                    x = self.succ.pred
-                    if x.id != self.id:
-                        print(x)
-                        if x and self._inbetween(x.id, self.id, self.succ.id):
-                            self.succ = x
-                        self.succ.notify(self.ref)
+                print("stabilize")
+                x = self.succ.pred
+                if x.id != self.id:
+                    print(x)
+                    if x and self._inbetween(x.id, self.id, self.succ.id):
+                        self.succ = x
+                    self.succ.notify(self.ref)
             except Exception as e:
                 print(f"Error in stabilize: {e}")
 
@@ -154,7 +154,15 @@ class ChordNode:
             self.pred = node
 
     def fix_fingers(self):
-        pass
+        """Regularly refresh finger table entries."""
+        while True:
+            try:
+                i = random.randint(0, self.m - 1)
+                self.next = (self.id + 2**i) % (2**self.m)
+                self.finger[i] = self.find_succ(self.next)
+            except Exception as e:
+                print(f"Error in fix fingers: {e}")
+            time.sleep(10)
 
     def check_predecessor(self):
         while True:
