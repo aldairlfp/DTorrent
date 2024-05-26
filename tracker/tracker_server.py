@@ -1,6 +1,6 @@
 import socket
 
-from tracker.chord import ChordNode, ChordNodeReference
+from tracker.chord import ChordNode, ChordNodeReference, getShaRepr
 
 GET_PEERS = 1
 GET_TORRENTS = 2
@@ -10,8 +10,8 @@ class TrackerServer:
     def __init__(self, id: int, local_addr=("127.0.0.1", 8080)) -> None:
         self.host = local_addr[0]
         self.port = local_addr[1]
-        self.node = ChordNode(id, self.host)
-        self.peers = [1, 2, 3]
+        self.node: ChordNode = ChordNode(id, self.host)
+        self.peers = []
         self.torrents = []
         self.tracker_id = 0
 
