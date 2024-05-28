@@ -5,8 +5,7 @@ import time
 import logging
 import os
 
-from client.bencoder import bencode, bdecode
-from client.parser_torrent import parse_torrent_file
+from bcoding import bencode, bdecode
 
 
 class Torrent(object):
@@ -26,7 +25,7 @@ class Torrent(object):
 
     def load_from_path(self, path):
         with open(path, "rb") as file:
-            contents = parse_torrent_file(path)
+            contents = bdecode(file.read())
 
         self.torrent_file = contents
         self.piece_length = self.torrent_file["info"]["piece length"]
@@ -70,6 +69,30 @@ class Torrent(object):
         self.number_of_pieces = math.ceil(
             self.selected_total_length / self.piece_length
         )
+        
+    def create_torrent(self, folder_path, file_path, announce_list):
+        self.torrent_file = {
+            "announce": announce_list,
+            "info": {
+                "length": os.path.getsize(file_path),
+                "name": os.path.basename(file_path),
+                "piece length": 2 ** 14,
+                "pieces": "",
+            },
+        }
+
+        with open(file_path, "rb") as file:
+            piece_length = self.torrent_file["info"]["piece length"]
+            pieces = []
+            while True:
+                piece = file.read(piece_length)
+                if not piece:
+                    break
+                pieces.append(hashlib.sha1(piece).digest())
+            self.torrent_file["info"]["pieces"] = b"".join(pieces)
+
+        with open(folder_path, "wb") as file:
+            file.write(bencode(self.torrent_file))
 
     def get_trakers(self):
         if "announce-list" in self.torrent_file:
