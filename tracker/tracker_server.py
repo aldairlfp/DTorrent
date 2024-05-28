@@ -2,17 +2,13 @@ import socket
 
 from tracker.chord import ChordNode, ChordNodeReference, getShaRepr
 
-GET_PEERS = 1
-GET_TORRENTS = 2
-
 
 class TrackerServer:
     def __init__(self, id: int, local_addr=("127.0.0.1", 8080)) -> None:
         self.host = local_addr[0]
         self.port = local_addr[1]
         self.node: ChordNode = ChordNode(id, self.host)
-        self.peers = []
-        self.torrents = []
+        self.info_hashs = {}
         self.tracker_id = 0
 
     def join(self, node_id, node_ip, node_port):
@@ -25,21 +21,40 @@ class TrackerServer:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.bind((self.host, self.port))
             s.listen(10)
+            print(f"Listening in {self.host}:{self.port}")
             while True:
                 conn, addr = s.accept()
-                data = conn.recv(1024).decode().split(",")
 
-                print(f"new connection from {addr} with {data[0]} action")
+                request_data = b""
+                while True:
+                    part = conn.recv(4096)
+                    request_data += part
+                    if len(part) < 4096:
+                        break
+
                 data_resp = None
-                option = int(data[0])
 
-                if option == GET_PEERS:
-                    data_resp = self.peers
-                elif option == GET_TORRENTS:
-                    data_resp = self.torrents
+                request_data = request_data.decode().split("\r\n")
 
-                data_s = ",".join([str(x) for x in data_resp])
-                conn.sendall(data_s.encode())
+                if request_data[0] == "GET / HTTP/1.1":
+                    params = request_data[1].split("?")[1].split("&")
+                    info_hash = params[0].split(": ")[1]
+                    peer_id = params[1].split(": ")[1]
+                    uploaded = params[2].split(": ")[1]
+                    downloaded = params[3].split(": ")[1]
+                    port = params[4].split(": ")[1]
+                    left = params[5].split(": ")[1]
+
+                    print(f"info_hash: {info_hash}")
+                    print(f"peer_id: {peer_id}")
+                    print(f"uploaded: {uploaded}")
+                    print(f"downloaded: {downloaded}")
+                    print(f"port: {port}")
+                    print(f"left: {left}")
+
+                    data_resp = self.info_hashs[info_hash]
+
+                    conn.sendall(data_resp.encode())
 
                 conn.close()
 
