@@ -38,7 +38,7 @@ class TrackerServer:
 
                 if request_data[0] == "GET / HTTP/1.1":
                     params = request_data[1].split("?")[1].split("&")
-                    info_hash = params[0].split(": ")[1]
+                    info_hash = params[0].split(": ")[1][2:-1].encode()
                     peer_id = params[1].split(": ")[1]
                     uploaded = params[2].split(": ")[1]
                     downloaded = params[3].split(": ")[1]
@@ -54,6 +54,11 @@ class TrackerServer:
 
                     data_resp = self.info_hashs[info_hash]
 
+                    if data_resp:
+                        data_resp = f"HTTP/1.1 200 OK\r\nContent-Length: {len(data_resp)}\r\n\r\n{data_resp}"
+                    else:
+                        data_resp = "HTTP/1.1 404 Not Found\r\n\r\n"
+                        
                     conn.sendall(data_resp.encode())
 
                 conn.close()

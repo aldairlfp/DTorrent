@@ -101,5 +101,4 @@ class Torrent(object):
             return [[self.torrent_file["announce"]]]
 
     def generate_peer_id(self):
-        seed = str(time.time())
-        return hashlib.sha1(seed.encode("utf-8")).digest()
+        return "-TR2940-" + str(int(time.time())) + "TR"
