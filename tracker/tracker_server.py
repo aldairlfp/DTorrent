@@ -52,13 +52,20 @@ class TrackerServer:
                     print(f"port: {port}")
                     print(f"left: {left}")
 
-                    data_resp = self.info_hashs[info_hash]
+                    data_resp = {}
+                    data_resp["interval"] = 5
+                    data_resp["peers"] = []
+
+                    for peer in self.info_hashs[info_hash]:
+                        data_resp["peers"] += [
+                            {"peer id": peer[0], "ip": peer[1], "port": peer[2]}
+                        ]
 
                     if data_resp:
-                        data_resp = f"HTTP/1.1 200 OK\r\nContent-Length: {len(data_resp)}\r\n\r\n{data_resp}"
+                        data_resp = f"HTTP/1.1 200 OK\r\nContent-Length: {len(data_resp)}\r\n\r\n{bencode(data_resp)}"
                     else:
                         data_resp = "HTTP/1.1 404 Not Found\r\n\r\n"
-                        
+
                     conn.sendall(data_resp.encode())
 
                 conn.close()

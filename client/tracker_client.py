@@ -25,7 +25,9 @@ class TrackerClient:
             s.sendall(
                 f"GET / HTTP/1.1\r\nHost: {host}/?{info_hash}&{peer_id}&{uploaded}&{downloaded}&{port}&{left}\r\n\r\n".encode()
             )
-            data = s.recv(1024).decode()
+            response = s.recv(1024).decode()
+            response = response.split("\r\n")
+            data = bdecode(response[3][2:-1].encode())
             print(data)
 
     def load_torrent(self):
