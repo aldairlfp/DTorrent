@@ -37,6 +37,8 @@ class Torrent(object):
         self.name = self.torrent_file["info"]["name"]
         self.init_files()
         self.number_of_pieces = math.ceil(self.total_length / self.piece_length)
+        self.selected_files = list(range(len(self.file_names)))
+        self.selected_total_length = self.total_length
         logging.debug(self.announce_list)
         logging.debug(self.file_names)
 
@@ -69,30 +71,33 @@ class Torrent(object):
         self.number_of_pieces = math.ceil(
             self.selected_total_length / self.piece_length
         )
-        
-    def create_torrent(self, folder_path, file_path, announce_list):
+
+    def create_torrent(self, folder_path, announce_list, name):
         self.torrent_file = {
             "announce": announce_list,
+            "creation date": int(time.time()),
             "info": {
-                "length": os.path.getsize(file_path),
-                "name": os.path.basename(file_path),
-                "piece length": 2 ** 14,
-                "pieces": "",
+                "length": os.path.getsize(folder_path),
+                "name": name,
+                "piece length": 2**14,
+                "files": [],
             },
         }
 
-        with open(file_path, "rb") as file:
-            piece_length = self.torrent_file["info"]["piece length"]
-            pieces = []
-            while True:
-                piece = file.read(piece_length)
-                if not piece:
-                    break
-                pieces.append(hashlib.sha1(piece).digest())
-            self.torrent_file["info"]["pieces"] = b"".join(pieces)
+        folder = len(folder_path) - len(os.path.basename(folder_path))
+        for root, _, files in os.walk(folder_path):
+            for file in files:
+                file_path = os.path.join(root[folder:], file)
+                file_info = {
+                    "length": os.path.getsize(os.path.join(root, file)),
+                    "path": file_path.split("\\"),
+                }
+                self.torrent_file["info"]["files"] += [file_info]
 
-        with open(folder_path, "wb") as file:
+        with open(f"torrents/{name}.torrent", "wb") as file:
             file.write(bencode(self.torrent_file))
+
+        return self.torrent_file
 
     def get_trakers(self):
         if "announce-list" in self.torrent_file:
