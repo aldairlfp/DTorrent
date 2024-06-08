@@ -31,6 +31,8 @@ class ChordNodeReference:
                 s.connect((self.ip, self.port))
                 s.sendall(f"{op},{data}".encode("utf-8"))
                 return s.recv(1024)
+        except ConnectionRefusedError as e:
+            raise ConnectionRefusedError(e.strerror)
         except Exception as e:
             print(f"Error sending data: {e}")
             return b""
@@ -134,13 +136,13 @@ class ChordNode:
         """Regular check for correct Chord structure."""
         while True:
             try:
-                print("stabilize")
                 x = self.succ.pred
                 if x.id != self.id:
-                    print(x)
                     if x and self._inbetween(x.id, self.id, self.succ.id):
                         self.succ = x
                     self.succ.notify(self.ref)
+            except ConnectionRefusedError as e:
+                self.succ = self.ref
             except Exception as e:
                 print(f"Error in stabilize: {e}")
 
@@ -181,9 +183,8 @@ class ChordNode:
 
             while True:
                 conn, addr = s.accept()
-                print(f"new connection from {addr}")
 
-                data = conn.recv(1024).decode().split(",")
+                data = conn.recv(4096).decode().split(",")
 
                 data_resp = None
                 option = int(data[0])
