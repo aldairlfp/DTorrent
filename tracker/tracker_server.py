@@ -1,5 +1,9 @@
 import socket
+import hashlib
+import threading
+import time
 
+from bcoding import bencode, bdecode
 from tracker.chord import ChordNode, ChordNodeReference, getShaRepr
 
 
@@ -10,6 +14,7 @@ class TrackerServer:
         self.node: ChordNode = ChordNode(id, self.host)
         self.info_hashs = {}
         self.tracker_id = 0
+        threading.Thread(target=self.print_hashs, daemon=True).start()
 
     def join(self, node_id, node_ip, node_port):
         self.node.join(ChordNodeReference(node_id, node_ip, node_port))
@@ -36,42 +41,53 @@ class TrackerServer:
 
                 request_data = request_data.decode().split("\r\n")
 
-                if request_data[0] == "GET / HTTP/1.1":
+                if request_data[0] == "GET / HTTP/1.1" and "?" in request_data[1]:
                     params = request_data[1].split("?")[1].split("&")
-                    info_hash = params[0].split(": ")[1][2:-1].encode()
-                    peer_id = params[1].split(": ")[1]
-                    uploaded = params[2].split(": ")[1]
-                    downloaded = params[3].split(": ")[1]
-                    port = params[4].split(": ")[1]
-                    left = params[5].split(": ")[1]
-
-                    print(f"info_hash: {info_hash}")
-                    print(f"peer_id: {peer_id}")
-                    print(f"uploaded: {uploaded}")
-                    print(f"downloaded: {downloaded}")
-                    print(f"port: {port}")
-                    print(f"left: {left}")
+                    info_hash = params[0].split("=")[1][2:-1].encode()
+                    peer_id = params[1].split("=")[1]
+                    uploaded = params[2].split("=")[1]
+                    downloaded = params[3].split("=")[1]
+                    port = params[4].split("=")[1]
+                    left = params[5].split("=")[1]
 
                     data_resp = {}
                     data_resp["interval"] = 5
                     data_resp["peers"] = []
 
-                    for peer in self.info_hashs[info_hash]:
-                        data_resp["peers"] += [
-                            {"peer id": peer[0], "ip": peer[1], "port": peer[2]}
-                        ]
+                    if info_hash in self.info_hashs:
+                        for peer in self.info_hashs[info_hash]:
+                            data_resp["peers"] += [
+                                {"peer id": peer[0], "ip": peer[1], "port": peer[2]}
+                            ]
+                        if (
+                            downloaded != "0"
+                            or left != "0"
+                            and not self.peer_has_info(peer[0], info_hash)
+                        ):
+                            self.info_hashs[info_hash] += [(peer_id, addr, port)]
+                    elif downloaded == "0" and left == "0":
+                        self.info_hashs[info_hash] = [(peer_id, addr, port)]
 
-                    if data_resp:
-                        data_resp = f"HTTP/1.1 200 OK\r\nContent-Length: {len(data_resp)}\r\n\r\n{bencode(data_resp)}"
-                    else:
-                        data_resp = "HTTP/1.1 404 Not Found\r\n\r\n"
+                    response = f"HTTP/1.1 200 OK\r\nContent-Length: {len(data_resp)}\r\n\r\n{bencode(data_resp)}"
 
-                    conn.sendall(data_resp.encode())
+                    conn.sendall(response.encode())
 
                 conn.close()
 
     def add_peers(self, elements: list):
         self.peers += elements
+
+    def peer_has_info(self, peer_id, info_hash):
+        if info_hash in self.info_hashs:
+            for peer in self.info_hashs[info_hash]:
+                if peer[0] == peer_id:
+                    return True
+        return False
+
+    def print_hashs(self):
+        while True:
+            time.sleep(5)
+            print(self.info_hashs)
 
     @property
     def id(self):
