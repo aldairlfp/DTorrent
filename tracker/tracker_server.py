@@ -2,6 +2,7 @@ import socket
 import hashlib
 import threading
 import time
+import urllib.parse
 
 from bcoding import bencode, bdecode
 from tracker.chord import ChordNode, ChordNodeReference, getShaRepr
@@ -43,12 +44,16 @@ class TrackerServer:
 
                 if request_data[0] == "GET / HTTP/1.1" and "?" in request_data[1]:
                     params = request_data[1].split("?")[1].split("&")
-                    info_hash = params[0].split("=")[1][2:-1].encode()
+
                     peer_id = params[1].split("=")[1]
                     uploaded = params[2].split("=")[1]
                     downloaded = params[3].split("=")[1]
                     port = params[4].split("=")[1]
                     left = params[5].split("=")[1]
+
+                    info_hash = params[0].split("=")[1]
+                    info_hash = urllib.parse.unquote(info_hash)
+                    info_hash = int(info_hash, 16)
 
                     data_resp = {}
                     data_resp["interval"] = 5

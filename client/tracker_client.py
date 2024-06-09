@@ -1,6 +1,7 @@
 import hashlib
 import socket
 import sys
+import urllib.parse
 
 from bcoding import bdecode, bencode
 from torrent import Torrent
@@ -18,7 +19,8 @@ class TrackerClient:
             self.torrents += [self.load_torrent()]
             current = self.torrents[len(self.torrents) - 1]
 
-            info_hash = f"info_hash={current.info_hash}"
+            info_hash = urllib.parse.quote(current.info_hash.hex())
+            info_hash = f"info_hash={info_hash}"
             peer_id = f"peer_id={current.peer_id}"
             uploaded = "uploaded=0"
             downloaded = "downloaded=0"
@@ -49,6 +51,7 @@ class TrackerClient:
             info_hash = (
                 f"info_hash={hashlib.sha1(bencode(torrent_file['info'])).digest()}"
             )
+            info_hash = f"info_hash={info_hash}"
             peer_id = f"peer_id={Torrent().generate_peer_id()}"
             uploaded = "uploaded=0"
             downloaded = "downloaded=0"
