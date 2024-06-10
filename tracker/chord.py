@@ -13,10 +13,13 @@ GET_PREDECESSOR = 4
 NOTIFY = 5
 CHECK_PREDECESSOR = 6
 CLOSEST_PRECEDING_FINGER = 7
+GET_VALUE = 8
+GET_KEYS = 9
+ADD_VALUE = 10
 
 
 def getShaRepr(data: str):
-    return int(hashlib.sha1(data.encode()).hexdigest(), 16)
+    return int.from_bytes(hashlib.sha1(data.encode()).digest())
 
 
 class ChordNodeReference:
@@ -30,7 +33,7 @@ class ChordNodeReference:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 s.connect((self.ip, self.port))
                 s.sendall(f"{op},{data}".encode("utf-8"))
-                return s.recv(1024)
+                return s.recv(4096)
         except ConnectionRefusedError as e:
             raise ConnectionRefusedError(e.strerror)
         except Exception as e:
@@ -67,6 +70,17 @@ class ChordNodeReference:
         )
         return ChordNodeReference(int(response[0]), response[1], self.port)
 
+    def get_value(self, key: int) -> dict:
+        response = self._send_data(GET_VALUE, str(key)).decode()
+        return eval(response) if response != "[]" else []
+
+    def get_keys(self) -> list:
+        response = self._send_data(GET_KEYS).decode()
+        return eval(response) if response != "" else []
+
+    def add_value(self, key: int, value: str):
+        self._send_data(ADD_VALUE, f"{key},{value}")
+
     def __str__(self) -> str:
         return f"{self.id},{self.ip},{self.port}"
 
@@ -75,7 +89,7 @@ class ChordNodeReference:
 
 
 class ChordNode:
-    def __init__(self, id: int, ip: str, port: int = 8001, m: int = 160):
+    def __init__(self, id: int, ip: str, port: int = 8001, m: int = 160, values={}):
         self.id = getShaRepr(ip)
         self.ip = ip
         self.port = port
@@ -85,6 +99,7 @@ class ChordNode:
         self.m = m  # Number of bits in the hash/key space
         self.finger = [self.ref] * self.m  # Finger table
         self.next = 0  # Finger table index to fix next
+        self.values = values  # Value stored in this node
 
         threading.Thread(
             target=self.fix_fingers, daemon=True
@@ -175,6 +190,23 @@ class ChordNode:
                 self.pred = None
             time.sleep(10)
 
+    def add_value(self, key: int, value):
+        node = self.find_succ(key)
+        node.add_value(key, str(value))
+
+    def get_all_values(self):
+        values = []
+        first = self.ref
+        while True:
+            keys = first.get_keys()
+            for key in keys:
+                values += first.get_value(key)
+            succ = first.succ
+            if succ.id == self.ref.id:
+                break
+            first = succ
+        return values
+
     def start_server(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -184,32 +216,58 @@ class ChordNode:
             while True:
                 conn, addr = s.accept()
 
-                data = conn.recv(4096).decode().split(",")
+                data = b""
+                while True:
+                    part = conn.recv(4096)
+                    data += part
+                    if len(part) < 4096:
+                        break
+
+                data = data.decode().split(",")
 
                 data_resp = None
                 option = int(data[0])
 
-                if option == FIND_SUCCESSOR:
-                    id = int(data[1])
-                    data_resp = self.find_succ(id)
-                elif option == FIND_PREDECESSOR:
-                    id = int(data[1])
-                    data_resp = self.find_pred(id)
-                elif option == GET_SUCCESSOR:
-                    data_resp = self.succ if self.succ else self.ref
-                elif option == GET_PREDECESSOR:
-                    data_resp = self.pred if self.pred else self.ref
-                elif option == NOTIFY:
-                    id = int(data[1])
-                    ip = data[2]
-                    self.notify(ChordNodeReference(id, ip, self.port))
-                elif option == CHECK_PREDECESSOR:
-                    pass
-                elif option == CLOSEST_PRECEDING_FINGER:
-                    id = int(data[1])
-                    data_resp = self.closest_preceding_finger(id)
+                if option < 8:
+                    if option == FIND_SUCCESSOR:
+                        id = int(data[1])
+                        data_resp = self.find_succ(id)
+                    elif option == FIND_PREDECESSOR:
+                        id = int(data[1])
+                        data_resp = self.find_pred(id)
+                    elif option == GET_SUCCESSOR:
+                        data_resp = self.succ if self.succ else self.ref
+                    elif option == GET_PREDECESSOR:
+                        data_resp = self.pred if self.pred else self.ref
+                    elif option == NOTIFY:
+                        id = int(data[1])
+                        ip = data[2]
+                        self.notify(ChordNodeReference(id, ip, self.port))
+                    elif option == CHECK_PREDECESSOR:
+                        pass
+                    elif option == CLOSEST_PRECEDING_FINGER:
+                        id = int(data[1])
+                        data_resp = self.closest_preceding_finger(id)
 
-                if data_resp:
+                else:
+                    if option == GET_VALUE:
+                        key = int(data[1])
+                        data_resp = self.values[key]
+                    elif option == GET_KEYS:
+                        data_resp = [key for key in self.values.keys()]
+                    elif option == ADD_VALUE:
+                        key = int(data[1])
+                        value = ",".join(data[2:])
+                        value = eval(value)
+                        if key not in self.values:
+                            self.values[key] = [value]
+                        else:
+                            self.values[key] += [value]
+
+                if data_resp and option < 8:
                     response = f"{data_resp.id},{data_resp.ip}".encode()
+                    conn.sendall(response)
+                elif data_resp:
+                    response = f"{data_resp}".encode()
                     conn.sendall(response)
                 conn.close()

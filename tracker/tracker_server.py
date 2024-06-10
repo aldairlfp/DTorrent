@@ -15,7 +15,7 @@ class TrackerServer:
         self.node: ChordNode = ChordNode(id, self.host)
         self.info_hashs = {}
         self.tracker_id = 0
-        threading.Thread(target=self.print_hashs, daemon=True).start()
+        threading.Thread(target=self.run, daemon=True).start()
 
     def join(self, node_id, node_ip, node_port):
         self.node.join(ChordNodeReference(node_id, node_ip, node_port))
@@ -71,7 +71,7 @@ class TrackerServer:
                         ):
                             self.info_hashs[info_hash] += [(peer_id, addr, port)]
                     elif downloaded == "0" and left == "0":
-                        self.info_hashs[info_hash] = [(peer_id, addr, port)]
+                        self.add_peer(peer_id, addr, port, info_hash)
 
                     response = f"HTTP/1.1 200 OK\r\nContent-Length: {len(data_resp)}\r\n\r\n{bencode(data_resp)}"
 
@@ -79,8 +79,8 @@ class TrackerServer:
 
                 conn.close()
 
-    def add_peers(self, elements: list):
-        self.peers += elements
+    def add_peer(self, peer_id, peer_ip, peer_port, info_hash):
+        self.node.add_value(info_hash, [peer_id, peer_ip, peer_port])
 
     def peer_has_info(self, peer_id, info_hash):
         if info_hash in self.info_hashs:
@@ -89,10 +89,8 @@ class TrackerServer:
                     return True
         return False
 
-    def print_hashs(self):
-        while True:
-            time.sleep(5)
-            print(self.info_hashs)
+    def get_hashs(self):
+        return self.node.get_all_values()
 
     @property
     def id(self):
