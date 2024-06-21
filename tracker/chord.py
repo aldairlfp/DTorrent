@@ -190,22 +190,27 @@ class ChordNode:
                 self.pred = None
             time.sleep(10)
 
+    def find(self, key: int):
+        return key in self.find_succ(key).get_keys()
+
     def add_value(self, key: int, value):
         node = self.find_succ(key)
         node.add_value(key, str(value))
 
-    def get_all_values(self):
-        values = []
+    def get_all(self):
+        hashs = {}
         first = self.ref
         while True:
             keys = first.get_keys()
+            values = []
             for key in keys:
                 values += first.get_value(key)
+                hashs[key] = values
             succ = first.succ
             if succ.id == self.ref.id:
                 break
             first = succ
-        return values
+        return hashs
 
     def start_server(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:

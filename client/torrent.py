@@ -85,9 +85,10 @@ class Torrent(object):
         }
 
         folder = len(folder_path) - len(os.path.basename(folder_path))
+        base_name = len(os.path.basename(folder_path))
         for root, _, files in os.walk(folder_path):
             for file in files:
-                file_path = os.path.join(root[folder:], file)
+                file_path = os.path.join(root[base_name + 1:], file)
                 file_info = {
                     "length": os.path.getsize(os.path.join(root, file)),
                     "path": file_path.split("\\"),

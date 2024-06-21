@@ -59,25 +59,22 @@ class TrackerServer:
                     data_resp["interval"] = 5
                     data_resp["peers"] = []
 
-                    if info_hash in self.info_hashs:
-                        for peer in self.info_hashs[info_hash]:
-                            data_resp["peers"] += [
-                                {"peer id": peer[0], "ip": peer[1], "port": peer[2]}
-                            ]
-                        if (
-                            downloaded != "0"
-                            or left != "0"
-                            and not self.peer_has_info(peer[0], info_hash)
-                        ):
-                            self.info_hashs[info_hash] += [(peer_id, addr, port)]
-                    elif downloaded == "0" and left == "0":
-                        self.add_peer(peer_id, addr, port, info_hash)
+                    if downloaded == "0" and left != "0" and self.find(info_hash):
+                        data_resp = self.get_peers(info_hash)
+                    elif downloaded == "0" and left == "0" and not self.find(info_hash):
+                        self.add_peer(peer_id, addr[0], port, info_hash)
 
                     response = f"HTTP/1.1 200 OK\r\nContent-Length: {len(data_resp)}\r\n\r\n{bencode(data_resp)}"
 
                     conn.sendall(response.encode())
 
                 conn.close()
+
+    def find(self, info_hash):
+        return self.node.find(info_hash)
+
+    def get_peers(self, info_hash):
+        return self.node.find_succ(info_hash).get_value(info_hash)
 
     def add_peer(self, peer_id, peer_ip, peer_port, info_hash):
         self.node.add_value(info_hash, [peer_id, peer_ip, peer_port])
@@ -89,8 +86,8 @@ class TrackerServer:
                     return True
         return False
 
-    def get_hashs(self):
-        return self.node.get_all_values()
+    def get_all(self):
+        return self.node.get_all()
 
     @property
     def id(self):
