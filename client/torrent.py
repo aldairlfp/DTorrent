@@ -7,6 +7,8 @@ import os
 
 from bcoding import bencode, bdecode
 
+from block import BLOCK_SIZE
+
 
 class Torrent(object):
     def __init__(self):
@@ -79,7 +81,7 @@ class Torrent(object):
             "info": {
                 "length": os.path.getsize(folder_path),
                 "name": name,
-                "piece length": 2**14,
+                "piece length": BLOCK_SIZE,
                 "files": [],
             },
         }
@@ -88,7 +90,7 @@ class Torrent(object):
         base_name = len(os.path.basename(folder_path))
         for root, _, files in os.walk(folder_path):
             for file in files:
-                file_path = os.path.join(root[base_name + 1:], file)
+                file_path = os.path.join(root[base_name + 1 :], file)
                 file_info = {
                     "length": os.path.getsize(os.path.join(root, file)),
                     "path": file_path.split("\\"),
