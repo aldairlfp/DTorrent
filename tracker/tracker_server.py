@@ -1,3 +1,4 @@
+import multiprocessing
 import socket
 import hashlib
 import threading
@@ -7,25 +8,86 @@ import urllib.parse
 from bcoding import bencode, bdecode
 from tracker.chord import ChordNode, ChordNodeReference, getShaRepr
 
+import tracker.leader_election as leader_election
+
+PORT = "8000"
+MCASTADDR = "224.0.0.1"
+
+
+def mcast_call(addr, port, msg):
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        s.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 1)
+        s.sendto(msg.encode(), (addr, port))
+
 
 class TrackerServer:
-    def __init__(self, id: int, local_addr=("127.0.0.1", 8080)) -> None:
+    def __init__(self, id: int, local_addr=("127.0.0.1", PORT)) -> None:
         self.host = local_addr[0]
         self.port = local_addr[1]
+        self.mcast_addr = MCASTADDR
         self.node: ChordNode = ChordNode(id, self.host)
-        self.info_hashs = {}
-        self.tracker_id = 0
-        threading.Thread(target=self.run, daemon=True).start()
+        self.elector: leader_election.BullyMulticastElector = (
+            leader_election.BullyMulticastElector(
+                leader_election.PORT, leader_election.MCASTADDR
+            )
+        )
 
-    def join(self, node_id, node_ip, node_port):
+    def join(self, node_id, node_ip, node_port=8001):
         self.node.join(ChordNodeReference(node_id, node_ip, node_port))
 
     def add_torrent(self, torrent):
         self.torrents.append(torrent)
 
+    def loop(self):
+        t1 = threading.Thread(target=self.server_thread)
+        t1.start()
+
+        t2 = threading.Thread(target=self.elector.loop)
+        t2.start()
+
+        try:
+
+            while True:
+                p = multiprocessing.Process(
+                    target=mcast_call, args=(self.mcast_addr, int(self.port), "JOIN")
+                )
+                p.start()
+
+                time.sleep(5)
+        except Exception as e:
+            print(f"Error in tracker.loop: {e}")
+
+    def server_thread(self):
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            membership = socket.inet_aton(self.mcast_addr) + socket.inet_aton("0.0.0.0")
+            s.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, membership)
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+            s.bind(("", int(self.port)))
+
+            while True:
+                try:
+                    msg, sender = s.recvfrom(1024)
+                    if not msg:
+                        continue
+
+                    if msg == b"JOIN":
+                        if (
+                            self.host != sender[0]
+                            and not self.elector.InElection
+                            and self.elector.ImTheLeader
+                            and not self.node.find_node(sender[0])
+                        ):
+                            # print(
+                            #     f"Am I the leader: {self.elector.ImTheLeader} and the sender is {sender[0]}"
+                            # )
+                            self.join(sender[0], sender[0])
+                except Exception as e:
+                    print(f"Error in run: {e}")
+
     def run(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind((self.host, self.port))
+            s.bind((self.host, int(self.port)))
             s.listen(10)
             print(f"Listening in {self.host}:{self.port}")
             while True:
