@@ -1,7 +1,6 @@
 import random
 import socket
 import threading
-import sys
 import time
 import hashlib
 
@@ -143,6 +142,7 @@ class ChordNode:
             self.pred = None
             self.succ = node.find_successor(self.id)
             self.succ.notify(self.ref)
+            print(f"{self.ip} will notify {self.succ.ip}")
         else:
             self.succ = self.ref
             self.pred = None
@@ -157,6 +157,7 @@ class ChordNode:
                         self.succ = x
                     self.succ.notify(self.ref)
             except ConnectionRefusedError as e:
+                print("Connection refused in Stabilize")
                 self.succ = self.ref
             except Exception as e:
                 print(f"Error in stabilize: {e}")
