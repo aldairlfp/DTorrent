@@ -54,6 +54,8 @@ class TrackerServer:
                 p.start()
 
                 time.sleep(5)
+        except KeyboardInterrupt as e:
+            print("The server will close")
         except Exception as e:
             print(f"Error in tracker.loop: {e}")
 
@@ -72,6 +74,7 @@ class TrackerServer:
                         continue
 
                     if msg == b"JOIN":
+                        time.sleep(15)
                         if (
                             self.host != sender[0]
                             and not self.elector.InElection
@@ -82,6 +85,7 @@ class TrackerServer:
                             #     f"Am I the leader: {self.elector.ImTheLeader} and the sender is {sender[0]}"
                             # )
                             self.join(sender[0], sender[0])
+
                 except Exception as e:
                     print(f"Error in run: {e}")
 

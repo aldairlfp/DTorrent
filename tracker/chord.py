@@ -195,15 +195,16 @@ class ChordNode:
 
     def find_node(self, ip):
         sha_key = getShaRepr(ip)
+        first = self.ref
         current = self.succ
 
-        while current.ip != ip:
+        while current.ip != first.ip:
             if current.id == sha_key:
                 return True
             else:
                 current = current.succ
 
-        return False
+        return False if self.id != sha_key else True
 
     def add_value(self, key: int, value):
         node = self.find_succ(key)

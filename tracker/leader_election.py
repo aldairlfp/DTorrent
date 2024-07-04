@@ -66,59 +66,62 @@ class BullyMulticastElector:
                     counter = 0
                     self.InElection = False
 
-            else:
-                print(f"Leader: {self.Leader}")
+            # else:
+            #     print(f"Leader: {self.Leader}")
 
             # print(f"{counter} waiting")
+            # print(f"Leader til now {self.Leader}")
             time.sleep(1)
 
     def server_thread(self):
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        membership = socket.inet_aton(self.mcast_adrr) + socket.inet_aton("0.0.0.0")
-        s.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, membership)
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            membership = socket.inet_aton(self.mcast_adrr) + socket.inet_aton("0.0.0.0")
+            s.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, membership)
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-        s.bind(("", int(PORT)))
+            s.bind(("", int(PORT)))
 
-        while True:
-            try:
-                msg, sender = s.recvfrom(1024)
-                if not msg:
-                    continue  # Ignorar mensajes vacíos
+            while True:
+                try:
+                    msg, sender = s.recvfrom(1024)
+                    if not msg:
+                        continue  # Ignorar mensajes vacíos
 
-                newId = sender[0]
-                msg = msg.decode("utf-8")
+                    newId = sender[0]
+                    msg = msg.decode("utf-8")
 
-                if msg.isdigit():
-                    msg = int(msg)
-                    if msg == ELECTION and not self.InElection:
-                        # print(f"Election message received from: {newId}")
+                    if msg.isdigit():
+                        # print(f"Server_thread message: {msg}")
+                        msg = int(msg)
+                        if msg == ELECTION and not self.InElection:
+                            # print(f"Election message received from: {newId}")
 
-                        if not self.InElection:
-                            self.InElection = True
-                            self.Leader = None
-                            self.election_call()
+                            if not self.InElection:
+                                self.InElection = True
+                                self.Leader = None
+                                self.election_call()
 
-                        if self.bully(self.id, newId):
-                            s_send = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                            s_send.sendto(f"{OK}".encode(), (newId, self.port))
+                            if self.bully(self.id, newId):
+                                with socket.socket(
+                                    socket.AF_INET, socket.SOCK_DGRAM
+                                ) as s_send:
+                                    s_send.sendto(f"{OK}".encode(), (newId, self.port))
 
-                    elif msg == OK:
-                        # print(f"OK message received from: {newId}")
-                        if self.Leader and self.bully(newId, self.Leader):
-                            self.Leader = newId
-                        self.ImTheLeader = False
+                        elif msg == OK:
+                            # print(f"OK message received from: {newId}")
+                            if self.Leader and self.bully(newId, self.Leader):
+                                self.Leader = newId
+                            self.ImTheLeader = False
 
-                    elif msg == WINNER:
-                        # print(f"Winner message received from: {newId}")
-                        if not self.bully(self.id, newId) and (
-                            not self.Leader or self.bully(newId, self.Leader)
-                        ):
-                            self.Leader = newId
-                            if self.Leader != self.id:
-                                self.ImTheLeader = False
-                            self.InElection = False
+                        elif msg == WINNER:
+                            print(f"Winner message received from: {newId}")
+                            if not self.bully(self.id, newId) and (
+                                not self.Leader or self.bully(newId, self.Leader)
+                            ):
+                                self.Leader = newId
+                                if self.Leader != self.id:
+                                    self.ImTheLeader = False
+                                self.InElection = False
 
-            except Exception as e:
-                print(f"Error in server_thread: {e}")
-
+                except Exception as e:
+                    print(f"Error in server_thread: {e}")
