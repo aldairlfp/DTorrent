@@ -14,7 +14,8 @@ CHECK_PREDECESSOR = 6
 CLOSEST_PRECEDING_FINGER = 7
 GET_VALUE = 8
 GET_KEYS = 9
-ADD_VALUE = 10
+STORE_KEY = 10
+STORE_REPLICATE = 11
 
 
 def getShaRepr(data: str):
@@ -77,8 +78,12 @@ class ChordNodeReference:
         response = self._send_data(GET_KEYS).decode()
         return eval(response) if response != "" else []
 
-    def add_value(self, key: int, value: str):
-        self._send_data(ADD_VALUE, f"{key},{value}")
+    def store_key(self, key: int, value: str, is_replicate=False):
+        (
+            self._send_data(STORE_REPLICATE, f"{key},{value}")
+            if is_replicate
+            else self._send_data(STORE_KEY, f"{key},{value}")
+        )
 
     def __str__(self) -> str:
         return f"{self.id},{self.ip},{self.port}"
@@ -88,7 +93,7 @@ class ChordNodeReference:
 
 
 class ChordNode:
-    def __init__(self, id: int, ip: str, port: int = 8001, m: int = 160, values={}):
+    def __init__(self, ip: str, port: int = 8001, m: int = 160, values={}):
         self.id = getShaRepr(ip)
         self.ip = ip
         self.port = port
@@ -99,6 +104,7 @@ class ChordNode:
         self.finger = [self.ref] * self.m  # Finger table
         self.next = 0  # Finger table index to fix next
         self.values = values  # Value stored in this node
+        self.replicates = {}
 
         threading.Thread(
             target=self.fix_fingers, daemon=True
@@ -207,9 +213,15 @@ class ChordNode:
 
         return False if self.id != sha_key else True
 
-    def add_value(self, key: int, value):
+    def store_key(self, key: int, value):
         node = self.find_succ(key)
-        node.add_value(key, str(value))
+        node.store_key(key, str(value))
+        first = node
+
+        current = first.succ
+        while current.succ.succ.id != first.id:
+            current.store_key(key, value, True)
+            current = current.succ
 
     def get_all(self):
         hashs = {}
@@ -274,7 +286,7 @@ class ChordNode:
                         data_resp = self.values[key]
                     elif option == GET_KEYS:
                         data_resp = [key for key in self.values.keys()]
-                    elif option == ADD_VALUE:
+                    elif option == STORE_KEY:
                         key = int(data[1])
                         value = ",".join(data[2:])
                         value = eval(value)
@@ -282,6 +294,14 @@ class ChordNode:
                             self.values[key] = [value]
                         else:
                             self.values[key] += [value]
+                    elif option == STORE_REPLICATE:
+                        key = int(data[1])
+                        value = ",".join(data[2:])
+                        value = eval(value)
+                        if key not in self.values:
+                            self.replicates[key] = [value]
+                        else:
+                            self.replicates[key] += [value]
 
                 if data_resp and option < 8:
                     response = f"{data_resp.id},{data_resp.ip}".encode()
