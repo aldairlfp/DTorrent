@@ -15,7 +15,11 @@ CLOSEST_PRECEDING_FINGER = 7
 GET_VALUE = 8
 GET_KEYS = 9
 STORE_KEY = 10
-STORE_REPLICATE = 11
+UPDATE_KEY = 11
+DELETE_KEY = 12
+STORE_REPLICATE = 13
+UPDATE_REPLICATE = 14
+DELETE_REPLICATE = 15
 
 
 def getShaRepr(data: str):
@@ -84,6 +88,12 @@ class ChordNodeReference:
             if is_replicate
             else self._send_data(STORE_KEY, f"{key},{value}")
         )
+
+    def update_key(self, key: int, value: str):
+        self._send_data(UPDATE_KEY, f"{key},{value}")
+
+    def delete_key(self, key: int):
+        self._send_data(DELETE_KEY, str(key))
 
     def __str__(self) -> str:
         return f"{self.id},{self.ip},{self.port}"
@@ -216,12 +226,15 @@ class ChordNode:
     def store_key(self, key: int, value):
         node = self.find_succ(key)
         node.store_key(key, str(value))
-        first = node
 
-        current = first.succ
-        while current.succ.succ.id != first.id:
-            current.store_key(key, value, True)
+        first = self.ref
+        current = self.succ
+        while current.succ.ip != first.ip:
+            current.replicate_values(key, value, current)
             current = current.succ
+
+    def replicate_values(self, key, value, node):
+        node.store_key(key, value, True)
 
     def get_all(self):
         hashs = {}
@@ -294,6 +307,14 @@ class ChordNode:
                             self.values[key] = [value]
                         else:
                             self.values[key] += [value]
+                    elif option == UPDATE_KEY:
+                        key = int(data[1])
+                        value = ",".join(data[2:])
+                        value = eval(value)
+                        self.values[key] = value
+                    elif option == DELETE_KEY:
+                        key = int(data[1])
+                        del self.values[key]
                     elif option == STORE_REPLICATE:
                         key = int(data[1])
                         value = ",".join(data[2:])
@@ -302,6 +323,14 @@ class ChordNode:
                             self.replicates[key] = [value]
                         else:
                             self.replicates[key] += [value]
+                    elif option == UPDATE_REPLICATE:
+                        key = int(data[1])
+                        value = ",".join(data[2:])
+                        value = eval(value)
+                        self.replicates[key] = value
+                    elif option == DELETE_REPLICATE:
+                        key = int(data[1])
+                        del self.replicates[key]
 
                 if data_resp and option < 8:
                     response = f"{data_resp.id},{data_resp.ip}".encode()
