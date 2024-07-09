@@ -94,6 +94,12 @@ class ChordNodeReference:
 
     def delete_key(self, key: int):
         self._send_data(DELETE_KEY, str(key))
+        
+    def update_replicate(self, key: int, value: str):
+        self._send_data(UPDATE_REPLICATE, f"{key},{value}")
+        
+    def delete_replicate(self, key: int):
+        self._send_data(DELETE_REPLICATE, str(key))
 
     def __str__(self) -> str:
         return f"{self.id},{self.ip},{self.port}"
