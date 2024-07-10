@@ -11,24 +11,24 @@ from tracker.chord import ChordNode, ChordNodeReference, getShaRepr
 import tracker.leader_election as leader_election
 
 PORT = "8000"
-MCASTADDR = "224.0.0.1"
+BCASTPORT = "8004"
 
 
-def mcast_call(addr, port, msg):
+def bcast_call(port,msg):
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-        s.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 1)
-        s.sendto(msg.encode(), (addr, port))
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        s.sendto(msg.encode(), (str(socket.INADDR_BROADCAST), port))
 
 
 class TrackerServer:
-    def __init__(self, id: int, local_addr=("127.0.0.1", PORT)) -> None:
+    def __init__(self, local_addr=("127.0.0.1", PORT)) -> None:
         self.host = local_addr[0]
         self.port = local_addr[1]
-        self.mcast_addr = MCASTADDR
-        self.node: ChordNode = ChordNode(id, self.host)
-        self.elector: leader_election.BullyMulticastElector = (
-            leader_election.BullyMulticastElector(
-                leader_election.PORT, leader_election.MCASTADDR
+        self.bcast_port = BCASTPORT
+        self.node: ChordNode = ChordNode(self.host)
+        self.elector: leader_election.BroadcastPowElector = (
+            leader_election.BroadcastPowElector(
+                leader_election.PORT
             )
         )
 
@@ -42,16 +42,22 @@ class TrackerServer:
         t1 = threading.Thread(target=self.server_thread)
         t1.start()
 
-        t2 = threading.Thread(target=self.elector.loop)
+        t2 = threading.Thread(target=self.get_requests)
         t2.start()
 
-        try:
+        t3 = threading.Thread(target=self.elector.loop)
+        t3.start()
 
+        try:
             while True:
                 p = multiprocessing.Process(
-                    target=mcast_call, args=(self.mcast_addr, int(self.port), "JOIN")
+                    target=bcast_call,
+                    args=(int(self.bcast_port), "JOIN"),
                 )
                 p.start()
+
+                print(f"Keys: {self.node.values}")
+                print(f"Replicates: {self.node.replicates}")
 
                 time.sleep(5)
         except KeyboardInterrupt as e:
@@ -61,11 +67,7 @@ class TrackerServer:
 
     def server_thread(self):
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-            membership = socket.inet_aton(self.mcast_addr) + socket.inet_aton("0.0.0.0")
-            s.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, membership)
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-
-            s.bind(("", int(self.port)))
+            s.bind(("", int(self.bcast_port)))
 
             while True:
                 try:
@@ -74,12 +76,10 @@ class TrackerServer:
                         continue
 
                     if msg == b"JOIN":
-                        time.sleep(15)
                         if (
                             self.host != sender[0]
-                            and not self.elector.InElection
-                            and self.elector.ImTheLeader
                             and not self.node.find_node(sender[0])
+                            and self.elector.ImTheLeader
                         ):
                             # print(
                             #     f"Am I the leader: {self.elector.ImTheLeader} and the sender is {sender[0]}"
@@ -89,9 +89,10 @@ class TrackerServer:
                 except Exception as e:
                     print(f"Error in run: {e}")
 
-    def run(self):
+    def get_requests(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.bind((self.host, int(self.port)))
+            print(f"Bind in {self.host}:{self.port}")
             s.listen(10)
             print(f"Listening in {self.host}:{self.port}")
             while True:
@@ -134,7 +135,7 @@ class TrackerServer:
 
                     conn.sendall(response.encode())
 
-                conn.close()
+                    conn.close()
 
     def find(self, info_hash):
         return self.node.find(info_hash)
@@ -143,7 +144,7 @@ class TrackerServer:
         return self.node.find_succ(info_hash).get_value(info_hash)
 
     def add_peer(self, peer_id, peer_ip, peer_port, info_hash):
-        self.node.add_value(info_hash, [peer_id, peer_ip, peer_port])
+        self.node.store_key(info_hash, [peer_id, peer_ip, peer_port])
 
     def peer_has_info(self, peer_id, info_hash):
         if info_hash in self.info_hashs:
