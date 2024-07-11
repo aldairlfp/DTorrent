@@ -10,7 +10,7 @@ FIND_PREDECESSOR = 2
 GET_SUCCESSOR = 3
 GET_PREDECESSOR = 4
 NOTIFY = 5
-CHECK_PREDECESSOR = 6
+
 CLOSEST_PRECEDING_FINGER = 7
 GET_VALUE = 8
 GET_KEYS = 9
@@ -20,6 +20,7 @@ DELETE_KEY = 12
 STORE_REPLICATE = 13
 UPDATE_REPLICATE = 14
 DELETE_REPLICATE = 15
+CHECK_CONN = 16
 
 
 def getShaRepr(data: str):
@@ -33,16 +34,27 @@ class ChordNodeReference:
         self.port = port
 
     def _send_data(self, op: int, data: str = None) -> bytes:
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.connect((self.ip, self.port))
-                s.sendall(f"{op},{data}".encode("utf-8"))
-                return s.recv(4096)
-        except ConnectionRefusedError as e:
-            raise ConnectionRefusedError(e.strerror)
-        except Exception as e:
-            print(f"Error sending data: {e}")
-            return b""
+        while True:
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.connect((self.ip, self.port))
+                    s.sendall(f"{op},{data}".encode("utf-8"))
+                    return s.recv(4096)
+            except ConnectionRefusedError as e:
+                print(f"Connection refused in _send_data with op: {op}")
+            except Exception as e:
+                print(f"Error sending data: {e}")
+                return b""
+
+    def check_conn(self):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.connect((self.ip, self.port))
+            s.sendall(f"{CHECK_CONN},error".encode("utf-8"))
+
+    def update_reference(self, node: "ChordNodeReference"):
+        self.id = node.id
+        self.ip = node.ip
+        self.port = node.port
 
     def find_successor(self, id: int) -> "ChordNodeReference":
         response = self._send_data(FIND_SUCCESSOR, str(id)).decode().split(",")
@@ -64,9 +76,6 @@ class ChordNodeReference:
 
     def notify(self, node: "ChordNodeReference"):
         self._send_data(NOTIFY, f"{node.id},{node.ip}")
-
-    def check_predecessor(self):
-        self._send_data(CHECK_PREDECESSOR)
 
     def closest_preceding_finger(self, id: int) -> "ChordNodeReference":
         response = (
@@ -94,10 +103,10 @@ class ChordNodeReference:
 
     def delete_key(self, key: int):
         self._send_data(DELETE_KEY, str(key))
-        
+
     def update_replicate(self, key: int, value: str):
         self._send_data(UPDATE_REPLICATE, f"{key},{value}")
-        
+
     def delete_replicate(self, key: int):
         self._send_data(DELETE_REPLICATE, str(key))
 
@@ -114,7 +123,9 @@ class ChordNode:
         self.ip = ip
         self.port = port
         self.ref = ChordNodeReference(self.id, self.ip, self.port)
-        self.succ = self.ref  # Initial successor is itself
+        self.succ = ChordNodeReference(
+            self.id, self.ip, self.port
+        )  # Initial successor is itself
         self.pred = None  # Initially no predecessor
         self.m = m  # Number of bits in the hash/key space
         self.finger = [self.ref] * self.m  # Finger table
@@ -173,14 +184,18 @@ class ChordNode:
         """Regular check for correct Chord structure."""
         while True:
             try:
+                self.succ.check_conn()
+                print(self.succ)
                 x = self.succ.pred
                 if x.id != self.id:
                     if x and self._inbetween(x.id, self.id, self.succ.id):
-                        self.succ = x
+                        self.succ.update_reference(x)
                     self.succ.notify(self.ref)
+                    # continue # TODO Check this continue
             except ConnectionRefusedError as e:
                 print("Connection refused in Stabilize")
-                self.succ = self.ref
+                self.succ.update_reference(self.ref)
+                continue
             except Exception as e:
                 print(f"Error in stabilize: {e}")
 
@@ -208,7 +223,7 @@ class ChordNode:
         while True:
             try:
                 if self.pred:
-                    self.pred.check_predecessor()
+                    self.pred.check_conn()
             except Exception as e:
                 self.pred = None
             time.sleep(10)
@@ -235,9 +250,9 @@ class ChordNode:
 
         first = self.ref
         current = self.succ
-        while current.succ.ip != first.ip:
-            current.replicate_values(key, value, current)
-            current = current.succ
+            while current.succ.ip != first.ip:
+                current.replicate_values(key, value, current)
+                current = current.succ
 
     def replicate_values(self, key, value, node):
         node.store_key(key, value, True)
@@ -293,8 +308,6 @@ class ChordNode:
                         id = int(data[1])
                         ip = data[2]
                         self.notify(ChordNodeReference(id, ip, self.port))
-                    elif option == CHECK_PREDECESSOR:
-                        pass
                     elif option == CLOSEST_PRECEDING_FINGER:
                         id = int(data[1])
                         data_resp = self.closest_preceding_finger(id)
@@ -325,7 +338,7 @@ class ChordNode:
                         key = int(data[1])
                         value = ",".join(data[2:])
                         value = eval(value)
-                        if key not in self.values:
+                        if key not in self.replicates:
                             self.replicates[key] = [value]
                         else:
                             self.replicates[key] += [value]
