@@ -17,10 +17,11 @@ GET_KEYS = 9
 STORE_KEY = 10
 UPDATE_KEY = 11
 DELETE_KEY = 12
-STORE_REPLICATE = 13
-UPDATE_REPLICATE = 14
-DELETE_REPLICATE = 15
-CHECK_CONN = 16
+GET_REPLICATE = 13
+STORE_REPLICATE = 14
+UPDATE_REPLICATE = 15
+DELETE_REPLICATE = 16
+CHECK_CONN = 17
 
 
 def getShaRepr(data: str):
@@ -104,6 +105,10 @@ class ChordNodeReference:
     def delete_key(self, key: int):
         self._send_data(DELETE_KEY, str(key))
 
+    def get_repliccate(self, key: int):
+        response = self._send_data(GET_REPLICATE, str(key)).decode()
+        return eval(response) if response != "[]" else []
+
     def update_replicate(self, key: int, value: str):
         self._send_data(UPDATE_REPLICATE, f"{key},{value}")
 
@@ -175,10 +180,52 @@ class ChordNode:
             self.pred = None
             self.succ = node.find_successor(self.id)
             self.succ.notify(self.ref)
-            print(f"{self.ip} will notify {self.succ.ip}")
-        else:
-            self.succ = self.ref
-            self.pred = None
+
+            
+            for key in self.succ.get_keys():
+                if not self._inbetween(key, self.id, self.succ.id):
+                    self.values[key] = self.succ.get_value(key)
+                    self.succ.delete_key(key)
+
+            # If there's only 2 nodes in the ring
+            if self.ip == self.succ.succ.ip and self.ip != self.succ.ip:
+                self.replicates[key] = self.succ.get_value(key)
+
+          
+            # TODO: Stabilize when joining nodes with keys in them
+            # first = self.ref
+            # last = self.succ
+            # while last.succ.ip != first.ip:
+            #     for key in self.values.keys():
+            #         replicates = last.get_repliccate(key)
+            #         if len(replicates) > 0:
+            #             replicates = self.values[key]
+            #         else:
+                        
+                
+            #     last = last.succ
+            
+            
+            
+            
+            # else:
+            #     for key in self.succ.get_keys():
+            #         if not self._inbetween(key, self.id, self.succ.id):
+            #             self.values[key] = self.succ.get_value(key)
+            #             self.replicate_values(key, self.succ.get_value(key), self.succ)
+            #             self.succ.delete_key(key)
+
+            #             # If there's 3 or more nodes in the ring
+            #             if self.ip != self.succ.succ.ip:
+            #                 # Delete the key from the susecor and the replicate
+            #                 # from the last node in the ring with the replicate
+            #                 self.succ.delete_key(key)
+            #                 last.delete_replicate(key)
+
+            # for key in self.values.keys():
+            #     self.replicate_values(key, self.values[key], self.succ)
+
+            # print(f"{self.ip} will notify {self.succ.ip}")
 
     def stabilize(self):
         """Regular check for correct Chord structure."""
@@ -244,12 +291,19 @@ class ChordNode:
 
         return False if self.id != sha_key else True
 
+    # TODO: Check the stability of the method
     def store_key(self, key: int, value):
         node = self.find_succ(key)
         node.store_key(key, str(value))
 
         first = self.ref
         current = self.succ
+        # If there's only 2 nodes in the ring
+        if current.succ.ip == first.ip and current.ip != first.ip:
+            self.replicate_values(key, value, current)
+        else:
+            # Replicate the value in all the nodes in the ring
+            # except in the pred of the node that has the key
             while current.succ.ip != first.ip:
                 current.replicate_values(key, value, current)
                 current = current.succ
@@ -342,6 +396,9 @@ class ChordNode:
                             self.replicates[key] = [value]
                         else:
                             self.replicates[key] += [value]
+                    elif option == GET_REPLICATE:
+                        key = int(data[1])
+                        data_resp = self.replicates[key]
                     elif option == UPDATE_REPLICATE:
                         key = int(data[1])
                         value = ",".join(data[2:])
