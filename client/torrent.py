@@ -30,6 +30,7 @@ class Torrent(object):
             contents = bdecode(file.read())
 
         self.torrent_file = contents
+        self.comment = contents["comment"]
         self.piece_length = self.torrent_file["info"]["piece length"]
         self.pieces = self.torrent_file["info"]["pieces"]
         raw_info_hash = bencode(self.torrent_file["info"])
@@ -54,7 +55,7 @@ class Torrent(object):
 
         if "files" in self.torrent_file["info"]:
             for file in self.torrent_file["info"]["files"]:
-                path_file = os.path.join(root, *file["path"])
+                path_file = file["path"]
 
                 self.file_names.append({"path": path_file, "length": file["length"]})
                 self.total_length += file["length"]
