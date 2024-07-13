@@ -92,9 +92,9 @@ class ChordNodeReference:
         response = self._send_data(GET_KEYS).decode()
         return eval(response) if response != "" else []
 
-    def store_key(self, key: int, value: str, is_replicate=False):
+    def store_key(self, key: int, value: str, is_replicate=False, owner = ()):
         (
-            self._send_data(STORE_REPLICATE, f"{key},{value}")
+            self._send_data(STORE_REPLICATE, f"{key},{value},{owner}")
             if is_replicate
             else self._send_data(STORE_KEY, f"{key},{value}")
         )
@@ -416,28 +416,30 @@ class ChordNode:
                     conn.sendall(response)
                 conn.close()
 
-    def save_replic(self, owner, info):
-        self.replicates[owner][info[0]] = info[1]
+    def save_replic(self, key, value, owner):
+
+        self.replicates[owner] = {}
+        self.replicates[owner][key] = value
     
     async def _async_replication(self, owner, info):
         # Saving a replic in predecessor
         if self.pred:
-            self.pred.save_replic(owner, info)
+            self.pred.store_key(info[0], info[1], True, (self.id, self.ip, self.port))
         else:
             while True:
                 try:
-                    self.pred.save_replic(owner, info)
+                    self.pred.store_key(info[0], info[1], True, (self.id, self.ip, self.port))
                     break
                 except:
                     pass
         
         # Saving a replic in succesor
         if self.succ:
-            self.succ.save_replic(owner, info)
+            self.succ.store_key(info[0], info[1], True, (self.id, self.ip, self.port))
         else:
             while True:
                 try:
-                    self.succ.save_replic(owner, info)
+                    self.succ.store_key(info[0], info[1], True, (self.id, self.ip, self.port))
                     break
                 except:
                     pass
