@@ -249,6 +249,9 @@ class ChordNode:
             print(f"successor : {self.succ} predecessor {self.pred}")
             time.sleep(10)
 
+        # TODO: change the repliated info in pred and succ
+        
+
     def notify(self, node: "ChordNodeReference"):
         if node.id == self.id:
             pass
