@@ -308,9 +308,6 @@ class ChordNode:
                 current.replicate_values(key, value, current)
                 current = current.succ
 
-    def replicate_values(self, key, value, node):
-        node.store_key(key, value, True)
-
     def get_all(self):
         hashs = {}
         first = self.ref
@@ -415,3 +412,30 @@ class ChordNode:
                     response = f"{data_resp}".encode()
                     conn.sendall(response)
                 conn.close()
+
+    def save_replic(self, owner, info):
+        self.replicates[owner][info[0]] = info[1]
+    
+    async def _async_replication(self, owner, info):
+        # Saving a replic in predecessor
+        if self.pred:
+            self.pred.save_replic(owner, info)
+        else:
+            while True:
+                try:
+                    self.pred.save_replic(owner, info)
+                    break
+                except:
+                    pass
+        
+        # Saving a replic in succesor
+        if self.succ:
+            self.succ.save_replic(owner, info)
+        else:
+            while True:
+                try:
+                    self.succ.save_replic(owner, info)
+                    break
+                except:
+                    pass
+        
