@@ -174,6 +174,7 @@ class ChordNode:
                 return self.finger[i]
         return self.ref
 
+    # TODO: Check this
     def join(self, node: "ChordNodeReference"):
         """Join a Chord network using 'node' as an entry point."""
         if node:
@@ -255,10 +256,8 @@ class ChordNode:
             print(f"successor : {self.succ} predecessor {self.pred}")
             if len(self.values) > 0:
                 for key, value in self.values:
-                    self._async_replication((key, value))
+                    self._async_replication((key, value), self.succ)
             time.sleep(10)
-
-        
 
     def notify(self, node: "ChordNodeReference"):
         if node.id == self.id:
