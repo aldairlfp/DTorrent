@@ -94,7 +94,7 @@ class ChordNodeReference:
 
     def store_key(self, key: int, value: str, is_replicate=False, owner = ()):
         (
-            self._send_data(STORE_REPLICATE, f"{key},{value},{owner}")
+            self._send_data(STORE_REPLICATE, f"{owner},{key},{value}")
             if is_replicate
             else self._send_data(STORE_KEY, f"{key},{value}")
         )
@@ -105,15 +105,15 @@ class ChordNodeReference:
     def delete_key(self, key: int):
         self._send_data(DELETE_KEY, str(key))
 
-    def get_repliccate(self, key: int):
-        response = self._send_data(GET_REPLICATE, str(key)).decode()
+    def get_repliccate(self, owner: int, key: int):
+        response = self._send_data(GET_REPLICATE, f"{owner},{key}").decode()
         return eval(response) if response != "[]" else []
 
-    def update_replicate(self, key: int, value: str):
-        self._send_data(UPDATE_REPLICATE, f"{key},{value}")
+    def update_replicate(self, owner: int, key: int, value: str):
+        self._send_data(UPDATE_REPLICATE, f"{owner},{key},{value}")
 
-    def delete_replicate(self, key: int):
-        self._send_data(DELETE_REPLICATE, str(key))
+    def delete_replicate(self, owner: int, key: int):
+        self._send_data(DELETE_REPLICATE, f"{owner},{key}")
 
     def __str__(self) -> str:
         return f"{self.id},{self.ip},{self.port}"
@@ -135,7 +135,7 @@ class ChordNode:
         self.m = m  # Number of bits in the hash/key space
         self.finger = [self.ref] * self.m  # Finger table
         self.next = 0  # Finger table index to fix next
-        self.values = values  # Value stored in this node
+        self.values :dict = values  # Value stored in this node
         self.replicates = {}
 
         threading.Thread(
@@ -182,14 +182,14 @@ class ChordNode:
             self.succ.notify(self.ref)
 
             
-            for key in self.succ.get_keys():
-                if not self._inbetween(key, self.id, self.succ.id):
-                    self.values[key] = self.succ.get_value(key)
-                    self.succ.delete_key(key)
+            # for key in self.succ.get_keys():
+            #     if not self._inbetween(key, self.id, self.succ.id):
+            #         self.values[key] = self.succ.get_value(key)
+            #         self.succ.delete_key(key)
 
-            # If there's only 2 nodes in the ring
-            if self.ip == self.succ.succ.ip and self.ip != self.succ.ip:
-                self.replicates[key] = self.succ.get_value(key)
+            # # If there's only 2 nodes in the ring
+            # if self.ip == self.succ.succ.ip and self.ip != self.succ.ip:
+            #     self.replicates[key] = self.succ.get_value(key)
 
           
             # TODO: Stabilize when joining nodes with keys in them
@@ -236,6 +236,12 @@ class ChordNode:
                 x = self.succ.pred
                 if x.id != self.id:
                     if x and self._inbetween(x.id, self.id, self.succ.id):
+                        if self.succ:
+                            try:
+                                self.succ.delete_replicate(self.id)
+                            except Exception as e:
+                                print(e)
+
                         self.succ.update_reference(x)
                     self.succ.notify(self.ref)
                     # continue # TODO Check this continue
@@ -247,15 +253,28 @@ class ChordNode:
                 print(f"Error in stabilize: {e}")
 
             print(f"successor : {self.succ} predecessor {self.pred}")
+            if len(self.values) > 0:
+                for key, value in self.values:
+                    self._async_replication((key, value))
             time.sleep(10)
 
-        # TODO: change the repliated info in pred and succ
         
 
     def notify(self, node: "ChordNodeReference"):
         if node.id == self.id:
             pass
         if not self.pred or self._inbetween(node.id, self.pred.id, self.id):
+            try:
+                self.pred.check_conn()
+                self.replicates.pop(self.pred.id)
+
+            except Exception as e:
+                for key, value in self.replicates[self.pred.id]:
+                    if self._inbetween(key, node.id, self.id):
+                        self.values[key] = value
+                    else:
+                        node.store_key(key, value)
+
             self.pred = node
 
     def fix_fingers(self):
@@ -299,17 +318,20 @@ class ChordNode:
         node = self.find_succ(key)
         node.store_key(key, str(value))
 
-        first = self.ref
-        current = self.succ
+        self._async_replication(self.id, (key, str(value)), self.pred)
+        self._async_replication(self.id, (key, str(value)), self.succ)
+
+        # first = self.ref
+        # current = self.succ
         # If there's only 2 nodes in the ring
-        if current.succ.ip == first.ip and current.ip != first.ip:
-            self.replicate_values(key, value, current)
-        else:
-            # Replicate the value in all the nodes in the ring
-            # except in the pred of the node that has the key
-            while current.succ.ip != first.ip:
-                current.replicate_values(key, value, current)
-                current = current.succ
+        # if current.succ.ip == first.ip and current.ip != first.ip:
+        #     self.replicate_values(key, value, current)
+        # else:
+        #     # Replicate the value in all the nodes in the ring
+        #     # except in the pred of the node that has the key
+        #     while current.succ.ip != first.ip:
+        #         current.replicate_values(key, value, current)
+        #         current = current.succ
 
     def get_all(self):
         hashs = {}
@@ -385,25 +407,27 @@ class ChordNode:
                         value = ",".join(data[2:])
                         value = eval(value)
                         self.values[key] = value
+
                     elif option == DELETE_KEY:
                         key = int(data[1])
                         del self.values[key]
                     elif option == STORE_REPLICATE:
-                        key = int(data[1])
-                        value = ",".join(data[2:])
+                        key = int(data[2])
+                        owner = int(data[1])
+                        value = ",".join(data[3:])
                         value = eval(value)
-                        if key not in self.replicates:
-                            self.replicates[key] = [value]
-                        else:
-                            self.replicates[key] += [value]
+
+                        self.save_replic(key, value, owner)
+
                     elif option == GET_REPLICATE:
                         key = int(data[1])
                         data_resp = self.replicates[key]
                     elif option == UPDATE_REPLICATE:
-                        key = int(data[1])
-                        value = ",".join(data[2:])
+                        owner = int(data[1])
+                        key = int(data[2])
+                        value = ",".join(data[3:])
                         value = eval(value)
-                        self.replicates[key] = value
+                        self.replicates[owner][key] = value
                     elif option == DELETE_REPLICATE:
                         key = int(data[1])
                         del self.replicates[key]
@@ -416,31 +440,18 @@ class ChordNode:
                     conn.sendall(response)
                 conn.close()
 
-    def save_replic(self, key, value, owner):
-
-        self.replicates[owner] = {}
+    def save_replic(self, key, value, owner): 
+        if not self.replicates[owner]:
+            self.replicates[owner] = {}
+        
         self.replicates[owner][key] = value
     
-    async def _async_replication(self, owner, info):
-        # Saving a replic in predecessor
-        if self.pred:
-            self.pred.store_key(info[0], info[1], True, (self.id, self.ip, self.port))
-        else:
-            while True:
-                try:
-                    self.pred.store_key(info[0], info[1], True, (self.id, self.ip, self.port))
-                    break
-                except:
-                    pass
-        
-        # Saving a replic in succesor
-        if self.succ:
-            self.succ.store_key(info[0], info[1], True, (self.id, self.ip, self.port))
-        else:
-            while True:
-                try:
-                    self.succ.store_key(info[0], info[1], True, (self.id, self.ip, self.port))
-                    break
-                except:
-                    pass
+    async def _async_replication(self, info :tuple, dest: ChordNodeReference):
+        # Saving a replic in destiny
+        while True:
+            try:
+                dest.store_key(info[0], info[1], True, self.id)
+                break
+            except Exception as e:
+                print(e)
         
