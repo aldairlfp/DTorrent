@@ -46,7 +46,7 @@ class ChordNodeReference:
                     logger.debug(f'Data sent succesfuly to {self.ip}:{self.port}')
                     return s.recv(4096)
             except ConnectionRefusedError as e:
-                logger.debug(f"Connection refused in _send_data with op: {op}")
+                logger.debug(f"Connection refused in _send_data by {e} with op: {op}")
             except Exception as e:
                 logger.debug(f"Error sending data: {e}")
                 return b""
@@ -210,7 +210,7 @@ class ChordNode:
                                 self.succ.check_conn()
                                 self.succ.delete_replicate(self.id)
                             except Exception as e:
-                                logger.debug(f'Failed to comunicate with {self.succ.ip}:{self.succ.port} by {e}')
+                                logger.debug(f'Failed to comunicate with {self.succ.ip} by {e}')
 
                         self.succ.update_reference(x)
                     self.succ.notify(self.ref)
@@ -224,8 +224,8 @@ class ChordNode:
 
             logger.debug(f"successor : {self.succ} predecessor {self.pred}")
             if len(self.values) > 0:
-                for key, value in self.values:
-                    self._async_replication((key, value), self.succ)
+                for key in list(self.values.keys()):
+                    self.replicate((key, self.values[key]), self.succ)
             time.sleep(10)
 
     def notify(self, node: "ChordNodeReference"):
@@ -237,11 +237,13 @@ class ChordNode:
                 self.replicates.pop(self.pred.id)
 
             except Exception as e:
-                for key, value in self.replicates[self.pred.id]:
-                    if self._inbetween(key, node.id, self.id):
-                        self.values[key] = value
-                    else:
-                        node.store_key(key, value)
+                if self.pred:
+                    logger.debug(f'Error in notify by {e}')
+                    for key, value in self.replicates[self.pred.id]:
+                        if self._inbetween(key, node.id, self.id):
+                            self.values[key] = value
+                        else:
+                            node.store_key(key, value)
 
             self.pred = node
 
@@ -356,8 +358,8 @@ class ChordNode:
                         else:
                             self.values[key] += [value]
 
-                        self._async_replication((key, value), self.pred)
-                        self._async_replication((key, value), self.succ)
+                        self.replicate((key, value), self.pred)
+                        self.replicate((key, value), self.succ)
 
                     elif option == UPDATE_KEY:
                         key = int(data[1])
@@ -403,14 +405,15 @@ class ChordNode:
         
         self.replicates[owner][key] = value
     
-    async def _async_replication(self, info :tuple, dest: ChordNodeReference):
+    def replicate(self, info :tuple, dest: ChordNodeReference):
         # Saving a replic in destiny
-        logger.debug(f'Trying to replicate ({info[1]}, {info[1]}) in destiny {dest.ip}')
-        while True:
-            try:
-                dest.check_conn()
-                dest.store_key(info[0], info[1], True, self.id)
-                break
-            except Exception as e:
-                print(e)
+        if dest:
+            logger.debug(f'Trying to replicate ({info[1]}, {info[1]}) in destiny {dest.ip}')
+            while True:
+                try:
+                    dest.check_conn()
+                    dest.store_key(info[0], info[1], True, self.id)
+                    break
+                except Exception as e:
+                    logger.debug(f'{e}')
         
