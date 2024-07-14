@@ -3,6 +3,9 @@ import socket
 import threading
 import time
 import hashlib
+import logging
+
+logger = logging.getLogger('__main__')
 
 # Operation codes
 FIND_SUCCESSOR = 1
@@ -23,7 +26,6 @@ UPDATE_REPLICATE = 15
 DELETE_REPLICATE = 16
 CHECK_CONN = 17
 
-
 def getShaRepr(data: str):
     return int.from_bytes(hashlib.sha1(data.encode()).digest())
 
@@ -35,17 +37,20 @@ class ChordNodeReference:
         self.port = port
 
     def _send_data(self, op: int, data: str = None) -> bytes:
+        logger.debug(f'Trying to send data to {self.ip}:{self.port}')
         while True:
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                     s.connect((self.ip, self.port))
                     s.sendall(f"{op},{data}".encode("utf-8"))
+                    logger.debug(f'Data sent succesfuly to {self.ip}:{self.port}')
                     return s.recv(4096)
             except ConnectionRefusedError as e:
-                print(f"Connection refused in _send_data with op: {op}")
+                logger.debug(f"Connection refused in _send_data by {e} with op: {op}")
             except Exception as e:
-                print(f"Error sending data: {e}")
+                logger.debug(f"Error sending data: {e}")
                 return b""
+            
 
     def check_conn(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -92,9 +97,9 @@ class ChordNodeReference:
         response = self._send_data(GET_KEYS).decode()
         return eval(response) if response != "" else []
 
-    def store_key(self, key: int, value: str, is_replicate=False):
+    def store_key(self, key: int, value: str, is_replicate=False, owner = ()):
         (
-            self._send_data(STORE_REPLICATE, f"{key},{value}")
+            self._send_data(STORE_REPLICATE, f"{owner},{key},{value}")
             if is_replicate
             else self._send_data(STORE_KEY, f"{key},{value}")
         )
@@ -105,15 +110,15 @@ class ChordNodeReference:
     def delete_key(self, key: int):
         self._send_data(DELETE_KEY, str(key))
 
-    def get_repliccate(self, key: int):
-        response = self._send_data(GET_REPLICATE, str(key)).decode()
+    def get_repliccate(self, owner: int, key: int):
+        response = self._send_data(GET_REPLICATE, f"{owner},{key}").decode()
         return eval(response) if response != "[]" else []
 
-    def update_replicate(self, key: int, value: str):
-        self._send_data(UPDATE_REPLICATE, f"{key},{value}")
+    def update_replicate(self, owner: int, key: int, value: str):
+        self._send_data(UPDATE_REPLICATE, f"{owner},{key},{value}")
 
-    def delete_replicate(self, key: int):
-        self._send_data(DELETE_REPLICATE, str(key))
+    def delete_replicate(self, owner: int, key: int):
+        self._send_data(DELETE_REPLICATE, f"{owner},{key}")
 
     def __str__(self) -> str:
         return f"{self.id},{self.ip},{self.port}"
@@ -124,6 +129,7 @@ class ChordNodeReference:
 
 class ChordNode:
     def __init__(self, ip: str, port: int = 8001, m: int = 160, values={}):
+        
         self.id = getShaRepr(ip)
         self.ip = ip
         self.port = port
@@ -135,18 +141,25 @@ class ChordNode:
         self.m = m  # Number of bits in the hash/key space
         self.finger = [self.ref] * self.m  # Finger table
         self.next = 0  # Finger table index to fix next
-        self.values = values  # Value stored in this node
+        self.values :dict = values  # Value stored in this node
         self.replicates = {}
 
+        logger.debug(f'Fixing fingers')
         threading.Thread(
             target=self.fix_fingers, daemon=True
-        ).start()  # Start fix fingers thread
+        ).start()  # Start fix fingers threa
+
+        logger.debug(f'Checking predecessor')
         threading.Thread(
             target=self.check_predecessor, daemon=True
         ).start()  # Start check predecessor thread
+
+        logger.debug(f'Initializing server.')
         threading.Thread(
             target=self.start_server, daemon=True
         ).start()  # Start server thread
+        
+        logger.debug(f'Stabilize ring')
         threading.Thread(
             target=self.stabilize, daemon=True
         ).start()  # Start stabilize thread
@@ -176,56 +189,12 @@ class ChordNode:
 
     def join(self, node: "ChordNodeReference"):
         """Join a Chord network using 'node' as an entry point."""
+        logger.debug(f'Insert a new node in network.')
+
         if node:
             self.pred = None
             self.succ = node.find_successor(self.id)
             self.succ.notify(self.ref)
-
-            
-            for key in self.succ.get_keys():
-                if not self._inbetween(key, self.id, self.succ.id):
-                    self.values[key] = self.succ.get_value(key)
-                    self.succ.delete_key(key)
-
-            # If there's only 2 nodes in the ring
-            if self.ip == self.succ.succ.ip and self.ip != self.succ.ip:
-                self.replicates[key] = self.succ.get_value(key)
-
-          
-            # TODO: Stabilize when joining nodes with keys in them
-            # first = self.ref
-            # last = self.succ
-            # while last.succ.ip != first.ip:
-            #     for key in self.values.keys():
-            #         replicates = last.get_repliccate(key)
-            #         if len(replicates) > 0:
-            #             replicates = self.values[key]
-            #         else:
-                        
-                
-            #     last = last.succ
-            
-            
-            
-            
-            # else:
-            #     for key in self.succ.get_keys():
-            #         if not self._inbetween(key, self.id, self.succ.id):
-            #             self.values[key] = self.succ.get_value(key)
-            #             self.replicate_values(key, self.succ.get_value(key), self.succ)
-            #             self.succ.delete_key(key)
-
-            #             # If there's 3 or more nodes in the ring
-            #             if self.ip != self.succ.succ.ip:
-            #                 # Delete the key from the susecor and the replicate
-            #                 # from the last node in the ring with the replicate
-            #                 self.succ.delete_key(key)
-            #                 last.delete_replicate(key)
-
-            # for key in self.values.keys():
-            #     self.replicate_values(key, self.values[key], self.succ)
-
-            # print(f"{self.ip} will notify {self.succ.ip}")
 
     def stabilize(self):
         """Regular check for correct Chord structure."""
@@ -235,23 +204,46 @@ class ChordNode:
                 x = self.succ.pred
                 if x.id != self.id:
                     if x and self._inbetween(x.id, self.id, self.succ.id):
+                        if self.succ:
+                            try:
+                                self.succ.check_conn()
+                                self.succ.delete_replicate(self.id)
+                            except Exception as e:
+                                logger.debug(f'Failed to comunicate with {self.succ.ip} by {e}')
+
                         self.succ.update_reference(x)
                     self.succ.notify(self.ref)
                     # continue # TODO Check this continue
             except ConnectionRefusedError as e:
-                print("Connection refused in Stabilize")
+                logger.debug("Connection refused in Stabilize")
                 self.succ.update_reference(self.ref)
                 continue
             except Exception as e:
-                print(f"Error in stabilize: {e}")
+                logger.debug(f"Error in stabilize: {e}")
 
-            print(f"successor : {self.succ} predecessor {self.pred}")
+            logger.debug(f"successor : {self.succ} predecessor {self.pred}")
+            if len(self.values) > 0:
+                for key in list(self.values.keys()):
+                    self.replicate((key, self.values[key]), self.succ)
             time.sleep(10)
 
     def notify(self, node: "ChordNodeReference"):
         if node.id == self.id:
             pass
         if not self.pred or self._inbetween(node.id, self.pred.id, self.id):
+            try:
+                self.pred.check_conn()
+                self.replicates.pop(self.pred.id)
+
+            except Exception as e:
+                if self.pred:
+                    logger.debug(f'Error in notify by {e}')
+                    for key, value in self.replicates[self.pred.id]:
+                        if self._inbetween(key, node.id, self.id):
+                            self.values[key] = value
+                        else:
+                            node.store_key(key, value)
+
             self.pred = node
 
     def fix_fingers(self):
@@ -290,25 +282,10 @@ class ChordNode:
 
         return False if self.id != sha_key else True
 
-    # TODO: Check the stability of the method
     def store_key(self, key: int, value):
         node = self.find_succ(key)
+        logger.debug(f'Saving {key} in {node.ip}.')
         node.store_key(key, str(value))
-
-        first = self.ref
-        current = self.succ
-        # If there's only 2 nodes in the ring
-        if current.succ.ip == first.ip and current.ip != first.ip:
-            self.replicate_values(key, value, current)
-        else:
-            # Replicate the value in all the nodes in the ring
-            # except in the pred of the node that has the key
-            while current.succ.ip != first.ip:
-                current.replicate_values(key, value, current)
-                current = current.succ
-
-    def replicate_values(self, key, value, node):
-        node.store_key(key, value, True)
 
     def get_all(self):
         hashs = {}
@@ -379,30 +356,41 @@ class ChordNode:
                             self.values[key] = [value]
                         else:
                             self.values[key] += [value]
+
+                        while(not self.pred):
+                            continue
+                        self.replicate((key, value), self.pred)
+
+                        while(not self.succ):
+                            continue
+                        self.replicate((key, value), self.succ)
+
                     elif option == UPDATE_KEY:
                         key = int(data[1])
                         value = ",".join(data[2:])
                         value = eval(value)
                         self.values[key] = value
+
                     elif option == DELETE_KEY:
                         key = int(data[1])
                         del self.values[key]
                     elif option == STORE_REPLICATE:
-                        key = int(data[1])
-                        value = ",".join(data[2:])
+                        key = int(data[2])
+                        owner = int(data[1])
+                        value = ",".join(data[3:])
                         value = eval(value)
-                        if key not in self.replicates:
-                            self.replicates[key] = [value]
-                        else:
-                            self.replicates[key] += [value]
+
+                        self.save_replic(key, value, owner)
+
                     elif option == GET_REPLICATE:
                         key = int(data[1])
                         data_resp = self.replicates[key]
                     elif option == UPDATE_REPLICATE:
-                        key = int(data[1])
-                        value = ",".join(data[2:])
+                        owner = int(data[1])
+                        key = int(data[2])
+                        value = ",".join(data[3:])
                         value = eval(value)
-                        self.replicates[key] = value
+                        self.replicates[owner][key] = value
                     elif option == DELETE_REPLICATE:
                         key = int(data[1])
                         del self.replicates[key]
@@ -414,3 +402,21 @@ class ChordNode:
                     response = f"{data_resp}".encode()
                     conn.sendall(response)
                 conn.close()
+
+    def save_replic(self, key, value, owner): 
+        if not self.replicates[owner]:
+            self.replicates[owner] = {}
+        
+        self.replicates[owner][key] = value
+    
+    def replicate(self, info :tuple, dest: ChordNodeReference):
+        # Saving a replic in destiny
+        logger.debug(f'Trying to replicate ({info[1]}, {info[1]}) in destiny {dest.ip}')
+        while True:
+            try:
+                dest.check_conn()
+                dest.store_key(info[0], info[1], True, self.id)
+                break
+            except Exception as e:
+                logger.debug(f'{e}')
+        
