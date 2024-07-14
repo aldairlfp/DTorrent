@@ -42,7 +42,7 @@ class BroadcastPowElector:
         s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         s.sendto(
             f"{id},{iteration},{initial_hash},{nonce},{prev_hash}".encode(),
-            (str(socket.INADDR_BROADCAST), int(port)),
+            ("255.255.255.255", int(port)),
         )
         time.sleep(3)
         s.close()

@@ -232,7 +232,6 @@ class ChordNode:
         while True:
             try:
                 self.succ.check_conn()
-                print(self.succ)
                 x = self.succ.pred
                 if x.id != self.id:
                     if x and self._inbetween(x.id, self.id, self.succ.id):

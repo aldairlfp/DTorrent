@@ -4,7 +4,9 @@ import hashlib
 import threading
 import time
 import urllib.parse
+import json
 
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from bcoding import bencode, bdecode
 from tracker.chord import ChordNode, ChordNodeReference, getShaRepr
 
@@ -14,10 +16,50 @@ PORT = "8000"
 BCASTPORT = "8004"
 
 
-def bcast_call(port,msg):
+def bcast_call(port, msg):
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        s.sendto(msg.encode(), (str(socket.INADDR_BROADCAST), port))
+        s.sendto(msg.encode(), ("255.255.255.255", port))
+
+
+class TrackerServerHandlerRequests(BaseHTTPRequestHandler):
+    def do_GET(self):
+        params = self.path.split("?")[1].split("&")
+
+        peer_id = params[1].split("=")[1]
+        uploaded = params[2].split("=")[1]
+        downloaded = params[3].split("=")[1]
+        port = params[4].split("=")[1]
+        left = params[5].split("=")[1]
+
+        info_hash = params[0].split("=")[1]
+        info_hash = urllib.parse.unquote(info_hash)
+        info_hash = int(info_hash, 16)
+
+        data_resp = {}
+        data_resp["interval"] = 10
+        data_resp["peers"] = []
+
+        if (
+            downloaded == "0"
+            and left != "0"
+            and self.server.tracker_server.find(info_hash)
+        ):
+            data_resp = self.server.tracker_server.get_peers(info_hash)
+        elif (
+            downloaded == "0"
+            and left == "0"
+            and not self.server.tracker_server.find(info_hash)
+        ):
+            self.server.tracker_server.add_peer(
+                peer_id, self.client_address[0], port, info_hash
+            )
+
+        self.send_response(200)
+        self.send_header("Content-type", "application/json")
+        self.end_headers()
+
+        self.wfile.write(json.dumps(data_resp).encode())
 
 
 class TrackerServer:
@@ -27,10 +69,13 @@ class TrackerServer:
         self.bcast_port = BCASTPORT
         self.node: ChordNode = ChordNode(self.host)
         self.elector: leader_election.BroadcastPowElector = (
-            leader_election.BroadcastPowElector(
-                leader_election.PORT
-            )
+            leader_election.BroadcastPowElector(leader_election.PORT)
         )
+
+        self.httpd = HTTPServer((self.host, self.port), TrackerServerHandlerRequests)
+        self.httpd.tracker_server = self
+
+        threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
 
     def join(self, node_id, node_ip, node_port=8001):
         self.node.join(ChordNodeReference(node_id, node_ip, node_port))
@@ -39,14 +84,14 @@ class TrackerServer:
         self.torrents.append(torrent)
 
     def loop(self):
-        t1 = threading.Thread(target=self.server_thread)
-        t1.start()
+        t1 = threading.Thread(target=self.server_thread)  # TODO:
+        # t1.start()
 
-        t2 = threading.Thread(target=self.get_requests)
-        t2.start()
+        # t2 = threading.Thread(target=self.get_requests)
+        # t2.start()
 
         t3 = threading.Thread(target=self.elector.loop)
-        t3.start()
+        # t3.start()
 
         try:
             while True:
@@ -123,7 +168,7 @@ class TrackerServer:
                     info_hash = int(info_hash, 16)
 
                     data_resp = {}
-                    data_resp["interval"] = 5
+                    data_resp["interval"] = 10
                     data_resp["peers"] = []
 
                     if downloaded == "0" and left != "0" and self.find(info_hash):

@@ -1,6 +1,6 @@
 import math
 
-from block import Block, BLOCK_SIZE
+from client.block import Block, BLOCK_SIZE
 
 
 class Piece:
