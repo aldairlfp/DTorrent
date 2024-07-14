@@ -358,7 +358,12 @@ class ChordNode:
                         else:
                             self.values[key] += [value]
 
+                        while(not self.pred):
+                            continue
                         self.replicate((key, value), self.pred)
+
+                        while(not self.succ):
+                            continue
                         self.replicate((key, value), self.succ)
 
                     elif option == UPDATE_KEY:
@@ -407,13 +412,12 @@ class ChordNode:
     
     def replicate(self, info :tuple, dest: ChordNodeReference):
         # Saving a replic in destiny
-        if dest:
-            logger.debug(f'Trying to replicate ({info[1]}, {info[1]}) in destiny {dest.ip}')
-            while True:
-                try:
-                    dest.check_conn()
-                    dest.store_key(info[0], info[1], True, self.id)
-                    break
-                except Exception as e:
-                    logger.debug(f'{e}')
+        logger.debug(f'Trying to replicate ({info[1]}, {info[1]}) in destiny {dest.ip}')
+        while True:
+            try:
+                dest.check_conn()
+                dest.store_key(info[0], info[1], True, self.id)
+                break
+            except Exception as e:
+                logger.debug(f'{e}')
         
