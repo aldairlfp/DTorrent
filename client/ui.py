@@ -1,5 +1,11 @@
+import json
 import sys
 import os
+import hashlib
+import threading
+import time
+import urllib
+import requests
 
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import (
@@ -16,10 +22,12 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt
 from PyQt5.uic import loadUi
 from client.resources_rc import *
+from bcoding import bdecode, bencode
 
-from client.parser_torrent import parse_torrent_file
 from client.torrent import Torrent
 from client.utils import transform_length
+from client.torrent import Torrent
+from client.piece_manager import PieceManager
 
 
 class TorrentClientApp(QMainWindow):
@@ -37,6 +45,21 @@ class TorrentClientApp(QMainWindow):
         self.tableProgress.setRowCount(0)
         self.tableProgress.setHorizontalHeaderLabels(headers)
 
+        self.torrents: list[Torrent] = []
+        self.piece_manager: list[PieceManager] = []
+        self.paths = {}
+
+        ip = "192.168.9.229"
+        ip = "10.2.0.2"
+        self.create_torrent(
+            f"http://{ip}:{8000}",
+            "torrents",
+            [f"http://{ip}:{8000}"],
+            "torrents",
+        )
+
+        threading.Thread(target=self.downloads_loop, daemon=True).start()
+
     def open_file_dialog_to_add_torrent(self):
         options = QFileDialog.Options()
         options |= QFileDialog.DontUseNativeDialog
@@ -53,6 +76,78 @@ class TorrentClientApp(QMainWindow):
             self.add_torrent_window = AddTorrentWindow(torrent, self)
             self.add_torrent_window.comboPathDir.addItem(os.path.dirname(file_path))
             self.add_torrent_window.show()
+            piece_manager = PieceManager(torrent)
+            self.piece_manager.append(piece_manager)
+            threading.Thread(
+                target=self.make_get_request, args=(piece_manager,), daemon=True
+            ).start()
+
+    def add_torrent(self, torrent_file: str):
+        torrent = Torrent().load_from_path(torrent_file)
+        self.torrents.append(torrent)
+        self.piece_manager.append(PieceManager(torrent), 5)
+
+    def get_peers(self, server_addr, info_hash, peer_id, left):
+
+        params = {
+            "info_h": urllib.parse.quote(info_hash.hex()),
+            "peer_i": {peer_id},
+            "uploaded": 0,
+            "downloaded": 0,
+            "port": 6881,
+            "left": left,
+        }
+
+        response = requests.get(server_addr, params=params)
+
+        if response.status_code == 200:
+            data = json.loads(response.content)
+
+            return data
+        else:
+            print("Torrent not found in tracker")
+
+    def create_torrent(self, server_addr, path, annouce_list, name):
+        torrent_file = Torrent().create_torrent(path, annouce_list, name)
+
+        raw_info_hash = bencode(torrent_file["info"])
+        info_hash = hashlib.sha1(raw_info_hash).digest()
+
+        params = {
+            "info_hash": urllib.parse.quote(info_hash.hex()),
+            "peer_id": Torrent().generate_peer_id(),
+            "uploaded": 0,
+            "downloaded": 0,
+            "port": 6881,
+            "left": 0,
+        }
+
+        response = requests.get(server_addr, params=params)
+
+        print(json.loads(response.content))
+
+    def downloads_loop(self):
+        while True:
+            # Select a piece manager to download a piece
+            # This will be for multiple downloads
+            for piecem in self.piece_manager:
+                if not piecem.have_all_pieces():
+                    # TODO: Chooke Algorith
+
+                    # Take a piece to try downloading
+                    for piece in piecem.pieces:
+                        pass
+
+    def make_get_request(self, piece_manager: PieceManager):
+        while True:
+            peers = self.get_peers(
+                (piece_manager.torrent.announce_list[0][0][0]),
+                piece_manager.torrent.info_hash,
+                piece_manager.torrent.peer_id,
+                piece_manager.torrent.total_length,
+            )
+            piece_manager.interval = peers["interval"]
+            time.sleep(peers["interval"])
 
 
 class AddTorrentWindow(QMainWindow):
@@ -94,7 +189,7 @@ class AddTorrentWindow(QMainWindow):
         item2 = QTableWidgetItem(self.lineNameTorrent.text())
 
         checked_elements = self.get_checked_elements()
-        self.torrent.selected_files(checked_elements)
+        self.torrent.select_files(checked_elements)
         item3 = QTableWidgetItem(transform_length(self.torrent.selected_total_length))
 
         delegate = ProgressDelegate(self.main_window.tableProgress)
@@ -115,7 +210,8 @@ class AddTorrentWindow(QMainWindow):
 
     def torrent_info(self):
         checked_elements = self.get_checked_elements()
-        self.torrent.selected_files(checked_elements)
+        checked_elements = [element.split("/") for element in checked_elements]
+        self.torrent.select_files(checked_elements)
         self.label_7.setText(transform_length(self.torrent.selected_total_length))
 
     def get_checked_elements(self):
@@ -126,7 +222,10 @@ class AddTorrentWindow(QMainWindow):
                 child = parent_item.child(i)
                 grand_children = child.childCount()
                 if grand_children > 0:
-                    recurse(child, f"{path}/{child.text(0)}")
+                    if path == "":
+                        recurse(child, f"{child.text(0)}")
+                    else:
+                        recurse(child, f"{path}/{child.text(0)}")
                 else:
                     if child.checkState(0) == Qt.Checked:
                         checked_items.append(path + "/" + child.text(0))
@@ -142,8 +241,8 @@ class AddTorrentWindow(QMainWindow):
         root_item.setCheckState(0, Qt.Checked)
         root_item.setFlags(root_item.flags() | Qt.ItemFlag.ItemIsTristate)
 
-        if len(torrent.pieces) > 0:
-            files = torrent.pieces
+        if len(torrent.file_names) > 0:
+            files = torrent.file_names
             parent_paths = [[]]
             items = [root_item]
             for file_info in files:
