@@ -136,7 +136,24 @@ class TorrentClientApp(QMainWindow):
 
                     # Take a piece to try downloading
                     for piece in piecem.pieces:
-                        pass
+                        index = piece.piece_index
+
+                        if piecem.pieces[index].is_full:
+                            continue
+
+                        # Get the piece from the peers
+                        # TODO: Implement
+
+                        self.piecem.pieces[index].update_block_state()
+
+                        data = self.piecem[index].get_empty_block()
+                        if not data:
+                            continue
+
+                        piece_index, block_offset, block_length = data
+
+                        # Request the piece to the peer
+                        # TODO: Implement
 
     def make_get_request(self, piece_manager: PieceManager):
         while True:
