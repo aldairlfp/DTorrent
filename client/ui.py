@@ -132,18 +132,21 @@ class TorrentClientApp(QMainWindow):
             # This will be for multiple downloads
             for piecem in self.piece_manager:
                 if not piecem.have_all_pieces():
-                    # TODO: Chooke Algorith
+                    # TODO: Implement chooke Algorith
 
                     # Take a piece to try downloading
                     for piece in piecem.pieces:
                         index = piece.piece_index
 
+                        # If the piece is downloaded try the next one
                         if piecem.pieces[index].is_full:
                             continue
 
-                        # Get the piece from the peers
+                        # Get a random peer having the piece
                         # TODO: Implement
-
+                        
+                        # Update the state of the block, freeing
+                        # when is pending for too long
                         self.piecem.pieces[index].update_block_state()
 
                         data = self.piecem[index].get_empty_block()
