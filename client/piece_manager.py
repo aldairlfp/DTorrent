@@ -1,5 +1,5 @@
-from torrent import Torrent
-from piece import Piece
+from client.torrent import Torrent
+from client.piece import Piece
 
 
 class PieceManager:
@@ -9,9 +9,9 @@ class PieceManager:
         self.pieces = self._generate_pieces()
         self.files = self._load_files()
         self.complete_pieces = 0
-        
+
         for file in self.files:
-            id_piece = file['idPiece']
+            id_piece = file["idPiece"]
             self.pieces[id_piece].files.append(file)
 
     def _generate_pieces(self):
@@ -76,3 +76,7 @@ class PieceManager:
 
                 files.append(file)
         return files
+
+    # TODO: Implement this method
+    def have_all_pieces(self):
+        return self.complete_pieces == self.number_of_pieces

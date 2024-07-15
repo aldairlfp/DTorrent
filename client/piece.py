@@ -1,6 +1,7 @@
 import math
+import time
 
-from block import Block, BLOCK_SIZE
+from client.block import Block, BLOCK_SIZE, State
 
 
 class Piece:
@@ -31,3 +32,20 @@ class Piece:
 
         else:
             self.blocks.append(Block(block_size=int(self.piece_size)))
+
+    def update_block_state(self):
+        for i, b in enumerate(self.blocks):
+            if b.state == State.PENDING and (time.time() - b.last_request_time) > 5:
+                self.blocks[i] = Block()
+
+    def get_empty_block(self):
+        if self.is_full:
+            return None
+
+        for block_index, block in enumerate(self.blocks):
+            if block.state == State.FREE:
+                self.blocks[block_index].state = State.PENDING
+                self.blocks[block_index].last_seen = time.time()
+                return self.piece_index, block_index * BLOCK_SIZE, block.block_size
+
+        return None

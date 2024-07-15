@@ -7,7 +7,7 @@ import os
 
 from bcoding import bencode, bdecode
 
-from block import BLOCK_SIZE
+from client.block import BLOCK_SIZE
 
 
 class Torrent(object):
@@ -30,7 +30,7 @@ class Torrent(object):
             contents = bdecode(file.read())
 
         self.torrent_file = contents
-        self.comment = contents["comment"]
+        self.comment = contents["comment"] if "comment" in contents else ""
         self.piece_length = self.torrent_file["info"]["piece length"]
         self.pieces = self.torrent_file["info"]["pieces"]
         raw_info_hash = bencode(self.torrent_file["info"])
@@ -67,7 +67,12 @@ class Torrent(object):
             self.total_length = self.torrent_file["info"]["length"]
 
     def select_files(self, selected_files):
-        self.selected_files = selected_files
+        self.selected_files = []
+        k = 0
+        for i in range(len(self.file_names)):
+            if selected_files[k] == self.file_names[k]["path"]:
+                self.selected_files.append(k)
+                k += 1
         self.selected_total_length = 0
         for file in self.selected_files:
             self.selected_total_length += self.file_names[file]["length"]
@@ -98,10 +103,39 @@ class Torrent(object):
                 }
                 self.torrent_file["info"]["files"] += [file_info]
 
+        self.torrent_file["info"]["pieces"] = self._generate_pieces_key_for_folder(
+            folder_path, self.piece_length
+        )
+        for root, _, files in os.walk(folder_path):
+            for file in files:
+                with open(os.path.join(root, file), "rb") as f:
+                    self.torrent_file["info"]["pieces"] += hashlib.sha1(
+                        f.read()
+                    ).digest()
+
         with open(f"torrents/{name}.torrent", "wb") as file:
             file.write(bencode(self.torrent_file))
 
         return self.torrent_file
+
+    def _generate_pieces_key_for_folder(self, folder_path, piece_size):
+        def read_in_pieces(file_path, piece_size):
+            with open(file_path, "rb") as f:
+                while True:
+                    piece = f.read(piece_size)
+                    if not piece:
+                        break
+                    yield piece
+
+        pieces = []
+        for root, dirs, files in os.walk(folder_path):
+            for file in files:
+                file_path = os.path.join(root, file)
+                for piece in read_in_pieces(file_path, piece_size):
+                    sha1 = hashlib.sha1()
+                    sha1.update(piece)
+                    pieces.append(sha1.digest())
+        return b"".join(pieces)
 
     def get_trakers(self):
         if "announce-list" in self.torrent_file:
