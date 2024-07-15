@@ -6,7 +6,7 @@ import time
 import urllib.parse
 
 from bcoding import bencode, bdecode
-from tracker.chord import ChordNode, ChordNodeReference, getShaRepr
+from tracker.chord import ChordNodeReference, getShaRepr, ChordNode
 
 import tracker.leader_election as leader_election
 
