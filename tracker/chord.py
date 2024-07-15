@@ -189,14 +189,17 @@ class ChordNode:
 
     def join(self, node: "ChordNodeReference"):
         """Join a Chord network using 'node' as an entry point."""
-        print(f'Insert a new node in network.')
+        # print(f'Insert a new node in network.')
 
         if node:
-            self.pred = None
-            print(f'Finding position of the new node {node.id}')
-            self.succ = node.find_successor(self.id)
-            print(f'Notify his succesor {self.succ.id}')
-            self.succ.notify(self.ref)
+            # self.pred = None
+            # print(f"Finding position of the new node {node.id}")
+            succ = node.find_successor(self.id)
+            if succ.ip != self.ip:
+                self.succ = succ
+                # print(f"Notify his succesor {self.succ.id}")
+                self.succ.notify(self.ref)
+                # print(f"join: succ -> {self.succ}, pred -> {self.pred}")
 
     def stabilize(self):
         """Regular check for correct Chord structure."""
@@ -210,7 +213,9 @@ class ChordNode:
                             self.succ.check_conn()
                             self.succ.delete_replicate(self.id)
                         except Exception as e:
-                            logger.debug(f'Failed to comunicate with {self.succ.ip} by {e}')
+                            logger.debug(
+                                f"Failed to comunicate with {self.succ.ip} by {e}"
+                            )
 
                         self.succ.update_reference(x)
 
