@@ -1,5 +1,6 @@
 from client.torrent import Torrent
 from client.piece import Piece
+import random
 
 
 class PieceManager:
@@ -7,8 +8,11 @@ class PieceManager:
         self.torrent: Torrent = torrent
         self.number_of_pieces = torrent.number_of_pieces
         self.pieces = self._generate_pieces()
+        self.left_pieces = [piece for piece in self.pieces]
+        self.downloding = []
         self.files = self._load_files()
         self.complete_pieces = 0
+        self.peers = []
 
         for file in self.files:
             id_piece = file["idPiece"]
@@ -34,6 +38,32 @@ class PieceManager:
                 )
 
         return pieces
+    
+    def set_peers(self, peers):
+        self.peers = peers
+
+    def get_peers(self):
+        return self.peers
+    
+    def get_random_peer(self):
+        rng = random.randint(0, len(self.peers))
+        return self.peers[rng]
+    
+    def set_download(self, piece):
+        if piece in self.left_pieces:
+            index = self.left_pieces.index(piece)
+            self.left_pieces.pop(index)
+            self.downloding.append(piece)
+        else:
+            print(f'Piece: {piece} is not in left pieces list.')
+
+    def handle_downloding_error(self, piece):
+        if piece in self.downloding:
+            index = self.downloding.index(piece)
+            self.downloding.pop(index)
+            self.left_pieces.append(piece)
+        else:
+            print(f'Piece: {piece} is not in download list.')
 
     def _load_files(self):
         files = []

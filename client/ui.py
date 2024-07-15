@@ -6,6 +6,7 @@ import threading
 import time
 import urllib
 import requests
+import message
 
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import (
@@ -143,20 +144,27 @@ class TorrentClientApp(QMainWindow):
                             continue
 
                         # Get a random peer having the piece
-                        # TODO: Implement
+                        peer = piecem.get_random_peer()
+                        if not peer:
+                            continue
                         
                         # Update the state of the block, freeing
                         # when is pending for too long
-                        self.piecem.pieces[index].update_block_state()
+                        piecem.pieces[index].update_block_state()
 
-                        data = self.piecem[index].get_empty_block()
+                        data = piecem.pieces[index].get_empty_block()
                         if not data:
                             continue
 
                         piece_index, block_offset, block_length = data
 
                         # Request the piece to the peer
-                        # TODO: Implement
+                        piece_data = message.Request(
+                            piece_index, block_offset, block_length
+                        ).to_bytes()
+                        peer.send_to_peer(piece_data)
+
+
 
     def make_get_request(self, piece_manager: PieceManager):
         while True:
@@ -166,7 +174,7 @@ class TorrentClientApp(QMainWindow):
                 piece_manager.torrent.peer_id,
                 piece_manager.torrent.total_length,
             )
-            piece_manager.interval = peers["interval"]
+            piece_manager.set_peers(peers)
             time.sleep(peers["interval"])
 
 
