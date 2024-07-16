@@ -8,7 +8,6 @@ import random
 
 from client import rarest_piece, peer, message
 
-
 class PeersManager(Thread):
     def __init__(self, torrent, pieces_manager):
         Thread.__init__(self)

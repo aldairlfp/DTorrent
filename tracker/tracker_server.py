@@ -45,7 +45,7 @@ class TrackerServerHandlerRequests(BaseHTTPRequestHandler):
             and left != "0"
             and self.server.tracker_server.find(info_hash)
         ):
-            data_resp = self.server.tracker_server.get_peers(info_hash)
+            data_resp['peers'] = self.server.tracker_server.get_peers(info_hash)
         elif (
             downloaded == "0"
             and left == "0"

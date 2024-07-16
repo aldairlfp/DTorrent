@@ -6,7 +6,6 @@ import threading
 import time
 import urllib
 import requests
-import message
 import random
 
 from PyQt5.QtGui import QIcon
@@ -26,9 +25,10 @@ from PyQt5.uic import loadUi
 from client.resources_rc import *
 from bcoding import bdecode, bencode
 
+from client import message
 from client.torrent import Torrent
 from client.utils import transform_length
-from client.torrent import Torrent
+from client.tracker import Tracker
 from client.piece_manager import PieceManager
 from client.peers_manager import PeersManager
 
@@ -52,12 +52,13 @@ class TorrentClientApp(QMainWindow):
         self.pieces_managers: list[PieceManager] = []
         self.paths = {}
         self.peers_managers: list[PeersManager] = []
+        self.trackers: list[Tracker] = []
 
         ip = "192.168.9.229"
-        ip = "10.2.0.2"
+        ip = "192.168.43.155"
         self.create_torrent(
             f"http://{ip}:{8000}",
-            "torrents",
+            "client",
             [f"http://{ip}:{8000}"],
             "torrents",
         )
@@ -80,17 +81,15 @@ class TorrentClientApp(QMainWindow):
             self.add_torrent_window = AddTorrentWindow(torrent, self)
             self.add_torrent_window.comboPathDir.addItem(os.path.dirname(file_path))
             self.add_torrent_window.show()
-            piece_manager = PieceManager(torrent)
-            self.pieces_managers.append(piece_manager)
-            threading.Thread(
-                target=self.make_get_request, args=(piece_manager,), daemon=True
-            ).start()
+            self.add_torrent(file_path)
+
 
     def add_torrent(self, torrent_file: str):
         torrent = Torrent().load_from_path(torrent_file)
         self.torrents.append(torrent)
         self.pieces_managers.append(PieceManager(torrent))
         self.peers_managers.append(PeersManager(torrent), self.pieces_managers[-1])
+        self.trackers.append(Tracker(torrent))
 
     def get_peers(self, server_addr, info_hash, peer_id, left):
 
@@ -107,7 +106,7 @@ class TorrentClientApp(QMainWindow):
 
         if response.status_code == 200:
             data = json.loads(response.content)
-
+            print(data)
             return data
         else:
             print("Torrent not found in tracker")
@@ -132,47 +131,72 @@ class TorrentClientApp(QMainWindow):
         print(json.loads(response.content))
 
     def downloads_loop(self):
-        while True:
-            # Select a piece manager to download a piece
-            # This will be for multiple downloads
-            for index, piecem in enumerate(self.pieces_managers):
-                if not piecem.have_all_pieces():
-                    # TODO: Implement chooke Algorith
+        i = 0
+        peers_dict = {}
+        while len(self.trackers > 0):
+            tracker = self.trackers[i]
+            i += 1
+            try:
+                peers_dict = tracker.get_peers_from_trackers()
+                break
+            except Exception as e:
+                print(e)
+        
+        if len(peers_dict == 0):
+            print('No tracker available.')
+            return
+        
 
-                    # Take a piece to try downloading
-                    for piece in piecem.pieces:
-                        index = piece.piece_index
+        peer_manager = self.peers_managers[-1]
+        peer_manager.add_peers(peers_dict.values())
+        # Select a piece manager to download a piece
+        # This will be for multiple downloads
 
-                        # If the piece is downloaded try the next one
-                        if piecem.pieces[index].is_full:
-                            continue
+        pieces_manager = self.pieces_managers[-1]
+        
+                # TODO: Implement chooke Algorith
+
+                # Take a piece to try downloading
+        for piece in pieces_manager.pieces:
+            index = piece.piece_index
+
+                    # If the piece is downloaded try the next one
+            if pieces_manager.pieces[index].is_full:
+                continue
 
                         # Get a random peer having the piece
-                        rng = random.randint(0, len(self.peers_managers))
-                        peer = self.peers_managers[rng]
-                        if not peer:
-                            continue
+            rng = random.randint(0, len(self.peers_managers))
+            peer = self.peers_managers[rng]
+            
+            if not peer:
+                continue
                         
                         # Update the state of the block, freeing
                         # when is pending for too long
-                        piecem.pieces[index].update_block_state()
+            pieces_manager.pieces[index].update_block_state()
 
-                        data = piecem.pieces[index].get_empty_block()
-                        if not data:
-                            continue
+            data = pieces_manager.pieces[index].get_empty_block()
+                    
+            if not data:        
+                continue
 
-                        piece_index, block_offset, block_length = data
+            piece_index, block_offset, block_length = data
 
                         # Request the piece to the peer
-                        piece_data = message.Request(
-                            piece_index, block_offset, block_length
-                        ).to_bytes()
-                        peer.send_to_peer(piece_data)
+            piece_data = message.Request(
+                piece_index, block_offset, block_length
+            ).to_bytes()
+            
+            peer.send_to_peer(piece_data)
+
+                    
 
 
 
     def make_get_request(self, piece_manager: PieceManager):
         while True:
+            if len(self.peers_managers) > 0:
+                print('Available downloads to do.')
             peers = self.get_peers(
                 (piece_manager.torrent.announce_list[0][0][0]),
                 piece_manager.torrent.info_hash,
