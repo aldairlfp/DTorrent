@@ -7,6 +7,7 @@ import time
 import urllib
 import requests
 import message
+import random
 
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import (
@@ -29,6 +30,7 @@ from client.torrent import Torrent
 from client.utils import transform_length
 from client.torrent import Torrent
 from client.piece_manager import PieceManager
+from client.peers_manager import PeersManager
 
 
 class TorrentClientApp(QMainWindow):
@@ -47,8 +49,9 @@ class TorrentClientApp(QMainWindow):
         self.tableProgress.setHorizontalHeaderLabels(headers)
 
         self.torrents: list[Torrent] = []
-        self.piece_manager: list[PieceManager] = []
+        self.pieces_managers: list[PieceManager] = []
         self.paths = {}
+        self.peers_managers: list[PeersManager] = []
 
         ip = "192.168.9.229"
         ip = "10.2.0.2"
@@ -78,7 +81,7 @@ class TorrentClientApp(QMainWindow):
             self.add_torrent_window.comboPathDir.addItem(os.path.dirname(file_path))
             self.add_torrent_window.show()
             piece_manager = PieceManager(torrent)
-            self.piece_manager.append(piece_manager)
+            self.pieces_managers.append(piece_manager)
             threading.Thread(
                 target=self.make_get_request, args=(piece_manager,), daemon=True
             ).start()
@@ -86,7 +89,8 @@ class TorrentClientApp(QMainWindow):
     def add_torrent(self, torrent_file: str):
         torrent = Torrent().load_from_path(torrent_file)
         self.torrents.append(torrent)
-        self.piece_manager.append(PieceManager(torrent), 5)
+        self.pieces_managers.append(PieceManager(torrent))
+        self.peers_managers.append(PeersManager(torrent), self.pieces_managers[-1])
 
     def get_peers(self, server_addr, info_hash, peer_id, left):
 
@@ -131,7 +135,7 @@ class TorrentClientApp(QMainWindow):
         while True:
             # Select a piece manager to download a piece
             # This will be for multiple downloads
-            for piecem in self.piece_manager:
+            for index, piecem in enumerate(self.pieces_managers):
                 if not piecem.have_all_pieces():
                     # TODO: Implement chooke Algorith
 
@@ -144,7 +148,8 @@ class TorrentClientApp(QMainWindow):
                             continue
 
                         # Get a random peer having the piece
-                        peer = piecem.get_random_peer()
+                        rng = random.randint(0, len(self.peers_managers))
+                        peer = self.peers_managers[rng]
                         if not peer:
                             continue
                         
@@ -174,7 +179,6 @@ class TorrentClientApp(QMainWindow):
                 piece_manager.torrent.peer_id,
                 piece_manager.torrent.total_length,
             )
-            piece_manager.set_peers(peers)
             time.sleep(peers["interval"])
 
 

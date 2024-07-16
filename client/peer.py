@@ -3,6 +3,7 @@ import struct
 import bitstring
 from pubsub import publish
 import logging
+import time
 
 from client import message
 
