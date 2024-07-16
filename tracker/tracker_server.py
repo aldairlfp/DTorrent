@@ -91,7 +91,7 @@ class TrackerServer:
         # t2.start()
 
         t3 = threading.Thread(target=self.elector.loop)
-        # t3.start()
+        t3.start()
 
         try:
             while True:
@@ -104,7 +104,7 @@ class TrackerServer:
                 print(f"Keys: {self.node.values}")
                 print(f"Replicates: {self.node.replicates}")
 
-                time.sleep(5)
+                time.sleep(10)
         except KeyboardInterrupt as e:
             print("The server will close")
         except Exception as e:
@@ -122,7 +122,7 @@ class TrackerServer:
                         continue
 
                     if msg[0] == "JOIN":
-                        if  msg[1] != "None" and self.host != msg[1]:
+                        if msg[1] != "None" and self.host != msg[1]:
                             # print(
                             #     f"Am I the leader: {self.elector.ImTheLeader} and the sender is {sender[0]}"
                             # )
