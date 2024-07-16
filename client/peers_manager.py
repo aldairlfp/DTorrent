@@ -1,15 +1,12 @@
-import time
-
-__author__ = 'alexisgallepe'
-
 import select
 from threading import Thread
 from pubsub import publish
-from client import rarest_piece, peer, message
 import logging
 import errno
 import socket
 import random
+
+from client import rarest_piece, peer, message
 
 
 class PeersManager(Thread):
@@ -139,10 +136,6 @@ class PeersManager(Thread):
                 logging.exception("")
 
             self.peers.remove(peer)
-
-        #for rarest_piece in self.rarest_pieces.rarest_pieces:
-        #    if peer in rarest_piece["peers"]:
-        #        rarest_piece["peers"].remove(peer)
 
     def get_peer_by_socket(self, socket):
         for peer in self.peers:
