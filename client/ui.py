@@ -152,58 +152,45 @@ class TorrentClientApp(QMainWindow):
         # Select a piece manager to download a piece
         # This will be for multiple downloads
 
-        pieces_manager = self.pieces_managers[-1]
+        piece_manager = self.pieces_managers[-1]
         
-                # TODO: Implement chooke Algorith
-
-                # Take a piece to try downloading
-        for piece in pieces_manager.pieces:
-            index = piece.piece_index
-
-                    # If the piece is downloaded try the next one
-            if pieces_manager.pieces[index].is_full:
+        while not piece_manager.is_complete():
+            if not peer_manager.has_unchoked_peers():
+                print('No unlocked peers')
                 continue
-
-                        # Get a random peer having the piece
-            rng = random.randint(0, len(self.peers_managers))
-            peer = self.peers_managers[rng]
             
-            if not peer:
-                continue
+            # Take a piece to try downloading
+            for piece in piece_manager.pieces:
+                index = piece.piece_index
+
+                # If the piece is downloaded try the next one
+                if piece_manager.pieces[index].is_full:
+                    continue
+
+                # Get a random peer having the piece
+                rng = random.randint(0, len(self.peers_managers))
+                peer = self.peers_managers[rng]
+            
+                if not peer:
+                    continue
                         
-                        # Update the state of the block, freeing
-                        # when is pending for too long
-            pieces_manager.pieces[index].update_block_state()
+                # Update the state of the block, freeing
+                # when is pending for too long
+                piece_manager.pieces[index].update_block_state()
 
-            data = pieces_manager.pieces[index].get_empty_block()
+                data = piece_manager.pieces[index].get_empty_block()
                     
-            if not data:        
-                continue
+                if not data:        
+                    continue
 
-            piece_index, block_offset, block_length = data
+                piece_index, block_offset, block_length = data
 
-                        # Request the piece to the peer
-            piece_data = message.Request(
-                piece_index, block_offset, block_length
-            ).to_bytes()
+                # Request the piece to the peer
+                piece_data = message.Request(
+                    piece_index, block_offset, block_length
+                ).to_bytes()
             
-            peer.send_to_peer(piece_data)
-
-                    
-
-
-
-    def make_get_request(self, piece_manager: PieceManager):
-        while True:
-            if len(self.peers_managers) > 0:
-                print('Available downloads to do.')
-            peers = self.get_peers(
-                (piece_manager.torrent.announce_list[0][0][0]),
-                piece_manager.torrent.info_hash,
-                piece_manager.torrent.peer_id,
-                piece_manager.torrent.total_length,
-            )
-            time.sleep(peers["interval"])
+                peer.send_to_peer(piece_data)
 
 
 class AddTorrentWindow(QMainWindow):
