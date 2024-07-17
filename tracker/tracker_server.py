@@ -77,34 +77,34 @@ class TrackerServer:
 
         threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
 
-    def join(self, node_id, node_ip, node_port=8001):
-        self.node.join(ChordNodeReference(node_id, node_ip, node_port))
+    def join(self, node_ip, node_port=8001):
+        self.node.join(ChordNodeReference(node_ip, node_ip, node_port))
 
     def add_torrent(self, torrent):
         self.torrents.append(torrent)
 
     def loop(self):
         t1 = threading.Thread(target=self.server_thread)  # TODO:
-        # t1.start()
+        t1.start()
 
         # t2 = threading.Thread(target=self.get_requests)
         # t2.start()
 
         t3 = threading.Thread(target=self.elector.loop)
-        # t3.start()
+        t3.start()
 
         try:
             while True:
                 p = multiprocessing.Process(
                     target=bcast_call,
-                    args=(int(self.bcast_port), "JOIN"),
+                    args=(int(self.bcast_port), f"JOIN,{self.elector.Leader}"),
                 )
                 p.start()
 
                 print(f"Keys: {self.node.values}")
                 print(f"Replicates: {self.node.replicates}")
 
-                time.sleep(5)
+                time.sleep(10)
         except KeyboardInterrupt as e:
             print("The server will close")
         except Exception as e:
@@ -117,19 +117,17 @@ class TrackerServer:
             while True:
                 try:
                     msg, sender = s.recvfrom(1024)
+                    msg = msg.decode().split(",")
                     if not msg:
                         continue
 
-                    if msg == b"JOIN":
-                        if (
-                            self.host != sender[0]
-                            and not self.node.find_node(sender[0])
-                            and self.elector.ImTheLeader
-                        ):
+                    if msg[0] == "JOIN":
+                        if msg[1] != "None" and self.host != msg[1]:
                             # print(
                             #     f"Am I the leader: {self.elector.ImTheLeader} and the sender is {sender[0]}"
                             # )
-                            self.join(sender[0], sender[0])
+                            # print(self.host != sender[0])
+                            self.join(msg[1])
 
                 except Exception as e:
                     print(f"Error in run: {e}")
