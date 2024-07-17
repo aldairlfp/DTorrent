@@ -45,7 +45,7 @@ class TrackerServerHandlerRequests(BaseHTTPRequestHandler):
             and left != "0"
             and self.server.tracker_server.find(info_hash)
         ):
-            data_resp['peers'] = self.server.tracker_server.get_peers(info_hash)
+            data_resp["peers"] = self.server.tracker_server.get_peers(info_hash)
         elif (
             downloaded == "0"
             and left == "0"
@@ -103,6 +103,8 @@ class TrackerServer:
 
                 print(f"Keys: {self.node.values}")
                 print(f"Replicates: {self.node.replicates}")
+                print(f"Succ -> {self.node.succ}")
+                print(f"Pred -> {self.node.pred}")
 
                 time.sleep(10)
         except KeyboardInterrupt as e:
@@ -129,8 +131,10 @@ class TrackerServer:
                             # print(self.host != sender[0])
                             self.join(msg[1])
 
-                except Exception as e:
-                    print(f"Error in run: {e}")
+                # except Exception as e:
+                #     print(f"Error in run: {e}")
+                finally:
+                    pass
 
     def get_requests(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
