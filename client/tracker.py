@@ -4,6 +4,7 @@ import json
 from client import peer
 from client.message import UdpTrackerConnection, UdpTrackerAnnounce, UdpTrackerAnnounceOutput
 from client.peers_manager import PeersManager
+from client.torrent import Torrent
 
 import requests
 import logging
@@ -28,16 +29,26 @@ class SockAddr:
 
 class Tracker(object):
     def __init__(self, torrent):
-        self.torrent = torrent
+        self.torrent: Torrent = torrent
         self.threads_list = []
         self.connected_peers = {}
         self.dict_sock_addr = {}
 
-    def get_peers_from_trackers(self, server_addr, info_hash, peer_id, left):
+
+    def __str__(self):
+        result = ""
+        for key in self.connected_peers:
+            result += f'peer: {key}\n'
+
+        result += str(self.torrent)
+
+        return result        
+
+    def get_peers_from_trackers(self, server_addr, left):
 
         params = {
-            "info_h": urllib.parse.quote(info_hash.hex()),
-            "peer_i": {peer_id},
+            "info_h": urllib.parse.quote(self.torrent.info_hash.hex()),
+            "peer_i": {self.torrent.peer_id},
             "uploaded": 0,
             "downloaded": 0,
             "port": 6881,
@@ -52,6 +63,7 @@ class Tracker(object):
             return data
         else:
             print("Torrent not found in tracker")
+
 
     def try_peer_connect(self):
         logging.info("Trying to connect to %d peer(s)" % len(self.dict_sock_addr))

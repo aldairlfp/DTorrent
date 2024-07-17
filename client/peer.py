@@ -1,7 +1,6 @@
 import socket
 import struct
 import bitstring
-from pubsub import publish
 import logging
 import time
 
@@ -24,6 +23,14 @@ class Peer(object):
             'peer_choking': True,
             'peer_interested': False,
         }
+        self.piece_manager = None
+        self.peer_manager = None
+
+    def set_piece_manager(self, piece_manager):
+        self.piece_manager = piece_manager
+    
+    def set_peer_manager(self, peer_manager):
+        self.peer_manager = peer_manager
 
     def __hash__(self):
         return "%s:%d" % (self.ip, self.port)
@@ -128,13 +135,13 @@ class Peer(object):
         """
         logging.debug('handle_request - %s' % self.ip)
         if self.is_interested() and self.is_unchoked():
-            publish.sendMessage('PiecesManager.PeerRequestsPiece', request=request, peer=self)
+            self.peer_manager.peer_request_piece(request=request, peer=self)
 
     def handle_piece(self, message):
         """
         :type message: message.Piece
         """
-        publish.sendMessage('PiecesManager.Piece', piece=(message.piece_index, message.block_offset, message.block))
+        self.peer_manager.peers_bitfield(piece=(message.piece_index, message.block_offset, message.block))
 
     def handle_cancel(self):
         logging.debug('handle_cancel - %s' % self.ip)

@@ -3,8 +3,6 @@ from client.piece import Piece
 
 import bitstring
 import logging
-from pubsub import publish
-
 
 class PiecesManager(object):
     def __init__(self, torrent: Torrent):
@@ -20,8 +18,6 @@ class PiecesManager(object):
             self.pieces[id_piece].files.append(file)
 
         # events
-        publish.subscribe(self.receive_block_piece, 'PiecesManager.Piece')
-        publish.subscribe(self.update_bitfield, 'PiecesManager.PieceCompleted')
 
     def update_bitfield(self, piece_index):
         self.bitfield[piece_index] = 1
@@ -66,9 +62,9 @@ class PiecesManager(object):
 
             if i == last_piece:
                 piece_length = self.torrent.total_length - (self.number_of_pieces - 1) * self.torrent.piece_length
-                pieces.append(Piece(i, piece_length, self.torrent.pieces[start:end]))
+                pieces.append(Piece(i, piece_length, self.torrent.pieces[start:end], self))
             else:
-                pieces.append(Piece(i, self.torrent.piece_length, self.torrent.pieces[start:end]))
+                pieces.append(Piece(i, self.torrent.piece_length, self.torrent.pieces[start:end], self))
 
         return pieces
 

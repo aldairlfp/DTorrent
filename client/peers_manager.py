@@ -1,6 +1,5 @@
 import select
 from threading import Thread
-from pubsub import publish
 import logging
 import errno
 import socket
@@ -18,9 +17,8 @@ class PeersManager(Thread):
         self.pieces_by_peer = [[0, []] for _ in range(pieces_manager.number_of_pieces)]
         self.is_active = True
 
-        # Events
-        publish.subscribe(self.peer_requests_piece, 'PeersManager.PeerRequestsPiece')
-        publish.subscribe(self.peers_bitfield, 'PeersManager.updatePeersBitfield')
+    def get_left(self):
+        return self.pieces_manager.number_of_pieces - self.pieces_manager.complete_pieces
 
     def peer_requests_piece(self, request=None, peer=None):
         if not request or not peer:

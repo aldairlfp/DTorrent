@@ -193,6 +193,7 @@
      <string>&amp;File</string>
     </property>
     <addaction name="actionLoad_torrent"/>
+    <addaction name="actionCreate_torrent"/>
     <addaction name="separator"/>
     <addaction name="action_Delete_torrent"/>
     <addaction name="separator"/>
@@ -216,6 +217,7 @@
    </attribute>
    <addaction name="actionLoad_torrent"/>
    <addaction name="separator"/>
+   <addaction name="actionCreate_torrent"/>
    <addaction name="action_Delete_torrent"/>
   </widget>
   <action name="actionLoad_torrent">
@@ -245,6 +247,11 @@
    </property>
    <property name="shortcut">
     <string>Del</string>
+   </property>
+  </action>
+  <action name="actionCreate_torrent">
+   <property name="text">
+    <string>Create torrent...</string>
    </property>
   </action>
  </widget>
