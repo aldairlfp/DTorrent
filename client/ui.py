@@ -29,7 +29,7 @@ from client import message
 from client.torrent import Torrent
 from client.utils import transform_length
 from client.tracker import Tracker
-from client.piece_manager import PieceManager
+from client.piece_manager import PiecesManager
 from client.peers_manager import PeersManager
 
 
@@ -49,21 +49,12 @@ class TorrentClientApp(QMainWindow):
         self.tableProgress.setHorizontalHeaderLabels(headers)
 
         self.torrents: list[Torrent] = []
-        self.pieces_managers: list[PieceManager] = []
+        self.pieces_managers: list[PiecesManager] = []
         self.paths = {}
         self.peers_managers: list[PeersManager] = []
         self.trackers: list[Tracker] = []
 
-        ip = "192.168.9.229"
-        ip = "192.168.43.155"
-        self.create_torrent(
-            f"http://{ip}:{8000}",
-            "client",
-            [f"http://{ip}:{8000}"],
-            "torrents",
-        )
-
-        threading.Thread(target=self.downloads_loop, daemon=True).start()
+        self.server_address = "http://192.168.43.155:8000"
 
     def open_file_dialog_to_add_torrent(self):
         options = QFileDialog.Options()
@@ -87,8 +78,8 @@ class TorrentClientApp(QMainWindow):
     def add_torrent(self, torrent_file: str):
         torrent = Torrent().load_from_path(torrent_file)
         self.torrents.append(torrent)
-        self.pieces_managers.append(PieceManager(torrent))
-        self.peers_managers.append(PeersManager(torrent), self.pieces_managers[-1])
+        self.pieces_managers.append(PiecesManager(torrent))
+        self.peers_managers.append(PeersManager(torrent, self.pieces_managers[-1]))
         self.trackers.append(Tracker(torrent))
 
     def get_peers(self, server_addr, info_hash, peer_id, left):
@@ -130,25 +121,28 @@ class TorrentClientApp(QMainWindow):
 
         print(json.loads(response.content))
 
-    def downloads_loop(self):
+    def download_loop(self):
         i = 0
-        peers_dict = {}
-        while len(self.trackers > 0):
+        peers = []
+        while len(self.trackers) > 0 and i < len(self.trackers):
             tracker = self.trackers[i]
-            i += 1
+            peer_manager = self.peers_managers[i]
             try:
-                peers_dict = tracker.get_peers_from_trackers()
+                print('Peer index is correct')
+                left = peer_manager.get_left()
+                peers = tracker.get_peers_from_trackers(self.server_address, left)['peers']
                 break
             except Exception as e:
                 print(e)
-        
-        if len(peers_dict == 0):
+                i += 1
+
+
+        if len(peers) == 0:
             print('No tracker available.')
             return
         
 
-        peer_manager = self.peers_managers[-1]
-        peer_manager.add_peers(peers_dict.values())
+        peer_manager.add_peers(peers)
         # Select a piece manager to download a piece
         # This will be for multiple downloads
 
@@ -157,6 +151,9 @@ class TorrentClientApp(QMainWindow):
         while not piece_manager.is_complete():
             if not peer_manager.has_unchoked_peers():
                 print('No unlocked peers')
+                time.sleep(5)
+                peers = tracker.get_peers_from_trackers(self.server_address, left)
+                peer_manager.add_peers(peers.values())
                 continue
             
             # Take a piece to try downloading
@@ -168,9 +165,7 @@ class TorrentClientApp(QMainWindow):
                     continue
 
                 # Get a random peer having the piece
-                rng = random.randint(0, len(self.peers_managers))
-                peer = self.peers_managers[rng]
-            
+                peer = peer_manager.get_random_peer_having_piece(index)
                 if not peer:
                     continue
                         
@@ -192,6 +187,8 @@ class TorrentClientApp(QMainWindow):
             
                 peer.send_to_peer(piece_data)
 
+    def start_download(self):
+        threading.Thread(target=self.download_loop, daemon=True).start()
 
 class AddTorrentWindow(QMainWindow):
     def __init__(self, torrent: Torrent, main_window: TorrentClientApp) -> None:
@@ -249,6 +246,7 @@ class AddTorrentWindow(QMainWindow):
         self.main_window.tableProgress.setItem(row_count - 1, 2, item3)
         self.main_window.tableProgress.setItem(row_count - 1, 3, item4)
 
+        self.main_window.start_download()
         self.close()
 
     def torrent_info(self):

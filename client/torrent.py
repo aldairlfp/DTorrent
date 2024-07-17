@@ -25,6 +25,13 @@ class Torrent(object):
         self.selected_files = []
         self.selected_total_length = 0
 
+    def __str__(self):
+        rsult = f'peer_id: {self.peer_id}\ninfo_hash: {self.info_hash}\n'
+
+        return rsult
+
+
+
     def load_from_path(self, path):
         with open(path, "rb") as file:
             contents = bdecode(file.read())
@@ -92,7 +99,6 @@ class Torrent(object):
             },
         }
 
-        folder = len(folder_path) - len(os.path.basename(folder_path))
         base_name = len(os.path.basename(folder_path))
         for root, _, files in os.walk(folder_path):
             for file in files:
