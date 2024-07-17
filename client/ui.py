@@ -7,6 +7,7 @@ import time
 import urllib
 import requests
 import random
+import os
 
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import (
@@ -42,6 +43,7 @@ class TorrentClientApp(QMainWindow):
         )
 
         self.actionLoad_torrent.triggered.connect(self.open_file_dialog_to_add_torrent)
+        self.actionCreate_torrent.triggered.connect(self.open_file_dialog_to_create_torrent)
 
         headers = ["#", "Name", "Size", "Progress"]
         self.tableProgress.setColumnCount(4)
@@ -55,6 +57,38 @@ class TorrentClientApp(QMainWindow):
         self.trackers: list[Tracker] = []
 
         self.server_address = "http://192.168.43.155:8000"
+
+    def open_file_dialog_to_create_torrent(self):
+        options = QFileDialog.Options()
+        options |= QFileDialog.DontUseNativeDialog
+
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Torrent File",
+            "",
+            "Torrent Files (*.torrent)",
+            options=options,
+        )
+
+        def parse_name(path):
+            intervals = path.split("/")
+            i = len(intervals)
+            while i > 0:
+                if len(intervals[i]) > 0:
+                    return intervals[-1]
+            
+                i -= 1
+
+            return 'Default'
+
+        startingDir = os.getcwd()
+        destDir = QFileDialog.getExistingDirectory(None, 
+                                                         'Open working directory', 
+                                                         startingDir, 
+                                                         QFileDialog.ShowDirsOnly)
+        
+        name = parse_name(destDir)
+        self.create_torrent(self.server_address, destDir, file_path, name)
 
     def open_file_dialog_to_add_torrent(self):
         options = QFileDialog.Options()
@@ -337,6 +371,55 @@ class AddTorrentWindow(QMainWindow):
             item.setText(1, file_type)
             item.setText(2, file_size)
 
+class CreateTorrentwindow(QMainWindow):
+    def __init__(self, main_window: TorrentClientApp) -> None:
+        super(AddTorrentWindow, self).__init__()
+        self.main_window: TorrentClientApp = main_window
+        self.torrent: Torrent = None
+        loadUi("client/ui_designs/create_torrent.ui", self)
+
+        # Connect the button to the function to open file dialog
+        self.buttonPathDir.clicked.connect(self.open_file_dialog_to_change_path)
+
+        self.treeTorrentFile.setHeaderLabels(["Name", "Type", "Size"])
+        self.treeTorrentFile.header().resizeSection(0, 200)
+        self.show_torrent_data(torrent)
+        self.lineNameTorrent.setText(torrent.name)
+
+        self.buttonOKAddTorrent.clicked.connect(self.add_torrent_to_main_window)
+
+        self.label_5.setText(self.torrent.name)
+        self.label_6.setText(self.torrent.comment)
+        self.label_7.setText(transform_length(self.torrent.total_length))
+        self.treeTorrentFile.clicked.connect(self.torrent_info)
+
+    def open_file_dialog_to_change_path(self):
+        options = QFileDialog.Options()
+        options |= QFileDialog.DontUseNativeDialog
+        folder_path = QFileDialog.getExistingDirectory(self, "Select Folder")
+        if folder_path:
+            self.comboPathDir.addItem(folder_path)
+            self.comboPathDir.setCurrentText(folder_path)
+
+
+    def get_checked_elements(self):
+        checked_items = []
+
+        def recurse(parent_item, path):
+            for i in range(parent_item.childCount()):
+                child = parent_item.child(i)
+                grand_children = child.childCount()
+                if grand_children > 0:
+                    if path == "":
+                        recurse(child, f"{child.text(0)}")
+                    else:
+                        recurse(child, f"{path}/{child.text(0)}")
+                else:
+                    if child.checkState(0) == Qt.Checked:
+                        checked_items.append(path + "/" + child.text(0))
+
+        recurse(self.treeTorrentFile.invisibleRootItem(), "")
+        return checked_items
 
 class ProgressDelegate(QStyledItemDelegate):
     def paint(self, painter, option, index):
