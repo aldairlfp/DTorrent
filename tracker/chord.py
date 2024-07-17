@@ -38,9 +38,12 @@ class ChordNodeReference:
         self.port = port
 
     def _send_data(self, op: int, data: str = None) -> bytes:
-        logger.debug(f"Trying to send data to {self.ip}:{self.port}")
+        logger.debug(
+            f"Trying to send data: {data} with op: {op} to {self.ip}:{self.port}"
+        )
+        # TODO: Remove this while True and manage the connection refused errors in the server
         while True:
-            # print(f"Send data {self.ip} with op -> {op}")
+            print(f"Send data {self.ip} with op -> {op}")
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                     s.connect((self.ip, self.port))
@@ -49,6 +52,9 @@ class ChordNodeReference:
                     return s.recv(4096)
             except ConnectionRefusedError as e:
                 print(f"Connection refused in _send_data by {self.ip} with op: {op}")
+                logger.debug(
+                    f"Connection refused in _send_data by {self.ip} with op: {op}"
+                )
                 # print(f"Error in sending data to {self.ip}")
                 time.sleep(5)
             except Exception as e:
@@ -223,6 +229,7 @@ class ChordNode:
                         self.replicate((key, self.values[key]), self.succ)
 
             except ConnectionRefusedError as e:
+                print(f"Connection refuse in stabilize: {e}")
                 self.succ.update_reference(self.ref)
 
             except Exception as e:
@@ -232,21 +239,6 @@ class ChordNode:
             print(f"successor : {self.succ}, predecessor: {self.pred}")
 
             time.sleep(10)
-
-    def maintain_succ_list(self):
-        # Maintain the succ list for stabilizing
-        while True:
-            try:
-                first = self.ref
-                while True:
-                    self.succ_list.append(first)
-                    if first.id == self.succ.id:
-                        break
-                    first = first.succ
-            except Exception as e:
-                print(f"Error in maintaining succ_list: {e}")
-
-            time.sleep(15)
 
     def notify(self, node: "ChordNodeReference"):
         # print(
