@@ -22,6 +22,6 @@ if __name__ == "__main__":
     tracker = TrackerServer((ip, 8000))
 
     dhash = getShaRepr(ip)
-    tracker.add_peer(1, 1, 1, dhash)
+    # tracker.add_peer(1, 1, 1, dhash)
     tracker.loop()
     

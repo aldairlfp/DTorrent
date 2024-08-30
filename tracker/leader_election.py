@@ -22,7 +22,7 @@ class BroadcastPowElector:
         self.iteration = iteration
 
     def _make_pow(self, iteration, initial_hash, difficulty, id, port):
-        print("pow started")
+        print("Pow started")
         nonce = 0
         sha = hashlib.sha256()
         sha.update(str(initial_hash).encode() + str(nonce).encode())
@@ -89,7 +89,7 @@ class BroadcastPowElector:
                         and hash[0 : self.difficulty] == "0" * self.difficulty
                     ):
                         print(f"Leader Elected: {winner}")
-                        self.Leader = winner
+                        self.Leader = winner[0]
                         # we have a winner
                         if id == self.id:
                             print("I'm the leader")
