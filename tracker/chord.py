@@ -40,7 +40,7 @@ class ChordNodeReference:
         self.port = port
 
     def get_server_uri(self):
-        name_server = Pyro5.api.locate_ns()
+        name_server = Pyro5.api.locate_ns(self.ip, 5554)
         return name_server.lookup(str(self.id))
 
     def check_conn(self):
@@ -58,13 +58,13 @@ class ChordNodeReference:
     def find_successor(self, id: int) -> "ChordNodeReference":
         server_uri = self.get_server_uri()
         with Pyro5.api.Proxy(server_uri) as server:
-            succesor = server.find_successor(id)
+            succesor = server.find_succ(id)
             return ChordNodeReference(succesor.id, succesor.ip, succesor.port)
 
     def find_predecessor(self, id: int) -> "ChordNodeReference":
         server_uri = self.get_server_uri()
         with Pyro5.api.Proxy(server_uri) as server:
-            predecesor = server.find_predecessor(id)
+            predecesor = server.find_pred(id)
             return ChordNodeReference(predecesor.id, predecesor.ip, predecesor.port)
 
     @property
@@ -72,14 +72,22 @@ class ChordNodeReference:
         server_uri = self.get_server_uri()
         with Pyro5.api.Proxy(server_uri) as server:
             succ = server.succ
-            return ChordNodeReference(succ.id, succ.ip, succ.port)
+            return (
+                ChordNodeReference(succ.id, succ.ip, succ.port)
+                if succ
+                else ChordNodeReference(self.id, self.ip, self.port)
+            )
 
     @property
     def pred(self) -> "ChordNodeReference":
         server_uri = self.get_server_uri()
         with Pyro5.api.Proxy(server_uri) as server:
-            print(server.pred)
-            return server.pred
+            pred = server.pred
+            return (
+                ChordNodeReference(pred.id, pred.ip, pred.port)
+                if pred
+                else ChordNodeReference(self.id, self.ip, self.port)
+            )
 
     def notify(self, node: "ChordNodeReference"):
         server_uri = self.get_server_uri()
@@ -231,32 +239,32 @@ class ChordNode:
         """Regular check for correct Chord structure."""
         while True:
             # print('Estabilizing')
-            try:
-                self.succ.check_conn()
-                x = self.succ.pred
-                if x.id != self.id:
-                    if x and self._inbetween(x.id, self.id, self.succ.id):
-                        try:
-                            self.succ.delete_replicate(self.id)
-                        except Exception as e:
-                            print(f"Failed to comunicate with {self.succ.ip} by {e}")
+            # try:
+            self.succ.check_conn()
+            x = self.succ.pred
+            if x.id != self.id:
+                if x and self._inbetween(x.id, self.id, self.succ.id):
+                    try:
+                        self.succ.delete_replicate(self.id)
+                    except Exception as e:
+                        print(f"Failed to comunicate with {self.succ.ip} by {e}")
 
-                        self.succ.update_reference(x)
-                        self.succ.notify(self.ref)
+                    self.succ.update_reference(x)
+                    self.succ.notify(self.ref)
 
-                if len(self.values) > 0 and self.succ.id != self.id:
-                    for key in list(self.values.keys()):
-                        self.replicate((key, self.values[key]), self.succ)
+            if len(self.values) > 0 and self.succ.id != self.id:
+                for key in list(self.values.keys()):
+                    self.replicate((key, self.values[key]), self.succ)
 
-            except ConnectionRefusedError as e:
-                print(f"Connection refuse in stabilize: {e}")
-                self.succ.update_reference(self.ref)
+            # except ConnectionRefusedError as e:
+            #     print(f"Connection refuse in stabilize: {e}")
+            #     self.succ.update_reference(self.ref)
 
-            except Exception as e:
-                print(f"Error in stabilize: {e}")
+            # except Exception as e:
+            #     print(f"Error in stabilize: {e}")
 
-            # print(self.succ_list)
-            print(f"successor : {self.succ}, predecessor: {self.pred}")
+            # # print(self.succ_list)
+            # print(f"successor : {self.succ}, predecessor: {self.pred}")
 
             time.sleep(10)
 
