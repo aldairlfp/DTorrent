@@ -6,6 +6,7 @@ import hashlib
 import logging
 import Pyro5.api
 import subprocess
+from Pyro5.api import register_class_to_dict, register_dict_to_class
 
 logger = logging.getLogger("__main__")
 
@@ -421,3 +422,15 @@ class ChordNode:
                 break
             except Exception as e:
                 print(f"Error in replicate {e}")
+
+
+def chord_node_reference_class_to_dict(obj):
+    return {"__class__": "ChordNodeReference", "ip": obj.ip, "port": obj.port}
+
+
+def chord_node_reference_dict_to_class(classname, d):
+    return ChordNodeReference(d["ip"], d["ip"])
+
+
+register_dict_to_class("ChordNodeReference", chord_node_reference_dict_to_class)
+register_class_to_dict(ChordNodeReference, chord_node_reference_class_to_dict)
