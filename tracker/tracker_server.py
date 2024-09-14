@@ -78,7 +78,10 @@ class TrackerServer:
         threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
 
     def join(self, node_ip, node_port=8001):
-        self.node.join(ChordNodeReference(node_ip, node_ip, node_port))
+        try:
+            self.node.join(ChordNodeReference(node_ip, node_ip, node_port))
+        except ConnectionRefusedError as e:
+            print(e)
 
     def add_torrent(self, torrent):
         self.torrents.append(torrent)
@@ -185,23 +188,28 @@ class TrackerServer:
                     conn.close()
 
     def find(self, info_hash):
-        return self.node.find(info_hash)
+        try:
+            return self.node.find(info_hash)
+        except ConnectionRefusedError as e:
+            print(e)
 
     def get_peers(self, info_hash):
-        return self.node.find_succ(info_hash).get_value(info_hash)
+        try:
+            return self.node.find_succ(info_hash).get_value(info_hash)
+        except ConnectionRefusedError as e:
+            print(e)
 
     def add_peer(self, peer_id, peer_ip, peer_port, info_hash):
-        self.node.store_key(info_hash, [peer_id, peer_ip, peer_port])
-
-    def peer_has_info(self, peer_id, info_hash):
-        if info_hash in self.info_hashs:
-            for peer in self.info_hashs[info_hash]:
-                if peer[0] == peer_id:
-                    return True
-        return False
+        try:
+            self.node.store_key(info_hash, [peer_id, peer_ip, peer_port])
+        except ConnectionRefusedError as e:
+            print(e)
 
     def get_all(self):
-        return self.node.get_all()
+        try:
+            return self.node.get_all()
+        except ConnectionRefusedError as e:
+            print(e)
 
     @property
     def id(self):
