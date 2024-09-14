@@ -41,25 +41,21 @@ class ChordNodeReference:
         logger.debug(
             f"Trying to send data: {data} with op: {op} to {self.ip}:{self.port}"
         )
-        # TODO: Remove this while True and manage the connection refused errors in the server
-        while True:
-            print(f"Send data {self.ip} with op -> {op}")
-            try:
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    s.connect((self.ip, self.port))
-                    s.sendall(f"{op},{data}".encode("utf-8"))
-                    logger.debug(f"Data sent succesfuly to {self.ip}:{self.port}")
-                    return s.recv(4096)
-            except ConnectionRefusedError as e:
-                print(f"Connection refused in _send_data by {self.ip} with op: {op}")
-                logger.debug(
-                    f"Connection refused in _send_data by {self.ip} with op: {op}"
-                )
-                # print(f"Error in sending data to {self.ip}")
-                time.sleep(5)
-            except Exception as e:
-                print(f"Error sending data: {e}")
-                return b""
+        print(f"Send data {self.ip} with op -> {op}")
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.connect((self.ip, self.port))
+                s.sendall(f"{op},{data}".encode("utf-8"))
+                logger.debug(f"Data sent succesfuly to {self.ip}:{self.port}")
+                return s.recv(4096)
+        except ConnectionRefusedError as e:
+            print(f"Connection refused in _send_data by {self.ip} with op: {op}")
+            logger.debug(f"Connection refused in _send_data by {self.ip} with op: {op}")
+            raise ConnectionRefusedError(e)
+        except Exception as e:
+            print(f"Error sending data: {e}")
+            logger.debug(f"Error sending data: {e}")
+            return b""
 
     def check_conn(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
