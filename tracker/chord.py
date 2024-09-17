@@ -220,9 +220,9 @@ class ChordNode:
                         self.succ.update_reference(x)
                         self.succ.notify(self.ref)
 
-                if len(self.values) > 0 and self.succ.id != self.id:
-                    for key in list(self.values.keys()):
-                        self.replicate((key, self.values[key]), self.succ)
+                # if len(self.values) > 0 and self.succ.id != self.id:
+                #     for key in list(self.values.keys()):
+                #         self.replicate((key, self.values[key]), self.succ)
 
             except ConnectionRefusedError as e:
                 print(f"Connection refuse in stabilize: {e}")
@@ -243,21 +243,21 @@ class ChordNode:
         if node.id == self.id:
             pass
         if not self.pred or self._inbetween(node.id, self.pred.id, self.id):
-            try:
-                self.pred.check_conn()
-                self.replicates.pop(self.pred.id)
+            # try:
+            #     self.pred.check_conn()
+            #     self.replicates.pop(self.pred.id)
 
-            except Exception as e:
-                if self.pred:
-                    logger.debug(f"Node: {self.id} has not replic from {self.pred.id}")
-                    if self.pred.id in self.replicates:
-                        for key in list(self.replicates[self.pred.id].keys()):
-                            value = self.replicates[self.pred.id][key]
-                            if self._inbetween(key, node.id, self.id):
-                                self.values[key] = value
-                                self.replicate((key, value), node)
-                            else:
-                                node.store_key(key, value)
+            # except Exception as e:
+            #     if self.pred:
+            #         logger.debug(f"Node: {self.id} has not replic from {self.pred.id}")
+            #         if self.pred.id in self.replicates:
+            #             for key in list(self.replicates[self.pred.id].keys()):
+            #                 value = self.replicates[self.pred.id][key]
+            #                 if self._inbetween(key, node.id, self.id):
+            #                     self.values[key] = value
+            #                     self.replicate((key, value), node)
+            #                 else:
+            #                     node.store_key(key, value)
 
             # try:
             self.pred = node
@@ -333,6 +333,25 @@ class ChordNode:
             first = succ
         return hashs
 
+    def save_replic(self, key, value, owner):
+        if not owner in self.replicates:
+            self.replicates[owner] = {}
+
+        self.replicates[owner][key] = value
+
+        # print(f'Replication succesfuly from {owner}')
+
+    def replicate(self, key, value):
+        # print(f'Trying to replicate ({info[1]}, {info[1]}) in destiny {dest.ip} as neighboor.')
+        # print(f"Replicate 3")
+        try:
+            if self.id != self.succ.id:
+                self.succ.store_key(key, value, True, self.id)
+            if self.id != self.succ.succ.id:
+                self.succ.succ.store_key(key, value, True, self.id)
+        except Exception as e:
+            print(f"Error in replicate {e}")
+
     def start_server(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -396,11 +415,10 @@ class ChordNode:
 
                         # print(f'Data with Key: {key} saved succesfuly in Node: {self.id}')
 
-                        if self.pred:
-                            self.replicate((key, value), self.pred)
+                        # if self.pred:
+                        #     self.replicate((key, value), self.pred)
 
-                        if self.succ and self.succ.id != self.id:
-                            self.replicate((key, value), self.succ)
+                        self.replicate(key, value)
 
                     elif option == UPDATE_KEY:
                         # print(f'Trying to update key: {key}')
@@ -440,10 +458,10 @@ class ChordNode:
                         value = ",".join(data[3:])
                         value = eval(value)
                         self.replicates[owner][key] = value
-                        if self.pred:
-                            self.replicate((key, value), self.pred)
-                        if self.succ and self.succ.id != self.id:
-                            self.replicate((key, value), self.succ)
+                        # if self.pred:
+                        #     self.replicate((key, value), self.pred)
+                        # if self.succ and self.succ.id != self.id:
+                        #     self.replicate((key, value), self.succ)
                         # print(f'Replic from Owner: {owner} and Key: {key} up to date succesfuly in Node: {self.id}')
                     elif option == DELETE_REPLICATE:
                         # print(f'Trying to delete replic from Owner: {owner} and Key: {key} in Node: {self.id}')
@@ -462,22 +480,3 @@ class ChordNode:
 
                 # print("The end")
                 conn.close()
-
-    def save_replic(self, key, value, owner):
-        if not owner in self.replicates:
-            self.replicates[owner] = {}
-
-        self.replicates[owner][key] = value
-
-        # print(f'Replication succesfuly from {owner}')
-
-    def replicate(self, info: tuple, dest: ChordNodeReference):
-        # print(f'Trying to replicate ({info[1]}, {info[1]}) in destiny {dest.ip} as neighboor.')
-        while True:
-            # print(f"Replicate 3")
-            try:
-                dest.check_conn()
-                dest.store_key(info[0], info[1], True, self.ref.id)
-                break
-            except Exception as e:
-                print(f"Error in replicate {e}")
