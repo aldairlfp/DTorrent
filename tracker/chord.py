@@ -199,6 +199,10 @@ class ChordNode:
             succ = node.find_successor(self.id)
             if succ.ip != self.ip:
                 self.succ.update_reference(succ)
+                
+                for key in list(self.values.keys()):
+                    self.replicate(key, self.values[key])
+                            
                 # print(f"Notify his succesor {self.succ.id}")
                 self.succ.notify(self.ref)
                 # print(f"join: succ -> {self.succ}, pred -> {self.pred}")
@@ -212,13 +216,19 @@ class ChordNode:
                 x = self.succ.pred
                 if x.id != self.id:
                     if x and self._inbetween(x.id, self.id, self.succ.id):
-                        try:
-                            self.succ.delete_replicate(self.id)
-                        except Exception as e:
-                            print(f"Failed to comunicate with {self.succ.ip} by {e}")
+                        # try:
+                        #     self.succ.delete_replicate(self.id)
+                        # except Exception as e:
+                        #     print(f"Failed to comunicate with {self.succ.ip} by {e}")
+
+                        self.succ.delete_replicate(self.id)
+                        self.succ.succ.delete_replicate(self.id)
 
                         self.succ.update_reference(x)
                         self.succ.notify(self.ref)
+
+                        for key in list(self.values.keys()):
+                            self.replicate(key, self.values[key])
 
                 # if len(self.values) > 0 and self.succ.id != self.id:
                 #     for key in list(self.values.keys()):
@@ -285,7 +295,7 @@ class ChordNode:
             try:
                 if self.pred:
                     self.pred.check_conn()
-            except Exception as e:
+            except ConnectionRefusedError as e:
                 try:
                     rep = self.replicates[self.pred.id]
                     # print(f"rep: {rep}")
@@ -316,7 +326,11 @@ class ChordNode:
     def store_key(self, key: int, value):
         node = self.find_succ(key)
         logger.debug(f"Saving {key} in {node.ip}.")
-        node.store_key(key, str(value))
+        node.store_key(key, value)
+        if node.succ.id != node.id:
+            node.succ.store_key(key, value, True, node.id)
+        if node.succ.succ.id != node.id:
+            node.succ.succ.store_key(key, value, True, node.id)
 
     def get_all(self):
         hashs = {}
@@ -418,7 +432,7 @@ class ChordNode:
                         # if self.pred:
                         #     self.replicate((key, value), self.pred)
 
-                        self.replicate(key, value)
+                        # self.replicate(key, value)
 
                     elif option == UPDATE_KEY:
                         # print(f'Trying to update key: {key}')
