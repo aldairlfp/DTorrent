@@ -25,6 +25,7 @@ STORE_REPLICATE = 14
 UPDATE_REPLICATE = 15
 DELETE_REPLICATE = 16
 CHECK_CONN = 17
+GET_MY_VALUES = 18
 
 
 def getShaRepr(data: str):
@@ -47,7 +48,12 @@ class ChordNodeReference:
                 s.connect((self.ip, self.port))
                 s.sendall(f"{op},{data}".encode("utf-8"))
                 logger.debug(f"Data sent succesfuly to {self.ip}:{self.port}")
-                return s.recv(4096)
+                response = s.recv(4096)
+                if response == "connection_refused":
+                    raise ConnectionRefusedError(
+                        "Connection refused in send_data -> start_server"
+                    )
+                return response
         except ConnectionRefusedError as e:
             print(f"Connection refused in _send_data to {self.ip} with op: {op}")
             logger.debug(f"Connection refused in _send_data to {self.ip} with op: {op}")
@@ -115,7 +121,7 @@ class ChordNodeReference:
     def delete_key(self, key: int):
         self._send_data(DELETE_KEY, str(key))
 
-    def get_repliccate(self, key: int):
+    def get_replicate(self, key: int):
         response = self._send_data(GET_REPLICATE, f"{key}").decode()
         return eval(response) if response != "[]" else []
 
@@ -124,6 +130,11 @@ class ChordNodeReference:
 
     def delete_replicate(self, key: int):
         self._send_data(DELETE_REPLICATE, f"{key}")
+
+    def get_my_values(self, key):
+        response = self._send_data(GET_MY_VALUES, f"{key}").decode()
+        print(f"Get My values: {response}... and type is {type(response)}")
+        return eval(response) if response != "[]" and response != "" else []
 
     def __str__(self) -> str:
         return f"{self.id},{self.ip},{self.port}"
@@ -200,6 +211,15 @@ class ChordNode:
             if succ.ip != self.ip:
                 self.succ.update_reference(succ)
 
+                if self.succ.id > self.id:
+                    my_values = self.succ.get_my_values(self.id)
+                    for mv in my_values:
+                        if mv[0] not in self.values:
+                            self.values[mv[0]] = mv[1]
+
+                    for k in self.values.keys():
+                        self.succ.delete_key(k)
+
                 for key in list(self.values.keys()):
                     self.replicate(key, self.values[key])
 
@@ -221,11 +241,15 @@ class ChordNode:
                         # except Exception as e:
                         #     print(f"Failed to comunicate with {self.succ.ip} by {e}")
 
-                        self.succ.delete_replicate(self.id)
-                        self.succ.succ.delete_replicate(self.id)
+                        for key in self.values.keys():
+                            self.succ.delete_replicate(key)
+                            self.succ.succ.delete_replicate(key)
 
                         self.succ.update_reference(x)
                         self.succ.notify(self.ref)
+
+                        for key in self.values.keys():
+                            self.succ.delete_key(key)
 
                 for key in list(self.values.keys()):
                     self.replicate(key, self.values[key])
@@ -299,6 +323,7 @@ class ChordNode:
                 try:
                     # rep = self.replicates[self.pred.id]
                     # print(f"rep: {rep}")
+                    print(f"Connection refused with pred -> {self.pred}")
                     keys = []
                     for key in self.replicates.keys():
                         self.values[key] = self.replicates[key]
@@ -369,6 +394,9 @@ class ChordNode:
             if self.id != self.succ.id:
                 self.succ.store_key(key, value, True)
             if self.id != self.succ.succ.id:
+                print(
+                    f"In replicate self.id -> {self.id} and self.succ.succ.id -> {self.succ.succ.id}"
+                )
                 self.succ.succ.store_key(key, value, True)
         except Exception as e:
             print(f"Error in replicate {e}")
@@ -398,98 +426,111 @@ class ChordNode:
                 data_resp = None
                 option = int(data[0])
 
-                if option < 8:
-                    if option == FIND_SUCCESSOR:
-                        id = int(data[1])
-                        data_resp = self.find_succ(id)
-                    elif option == FIND_PREDECESSOR:
-                        id = int(data[1])
-                        data_resp = self.find_pred(id)
-                    elif option == GET_SUCCESSOR:
-                        data_resp = self.succ if self.succ else self.ref
-                    elif option == GET_PREDECESSOR:
-                        data_resp = self.pred if self.pred else self.ref
-                    elif option == NOTIFY:
-                        id = int(data[1])
-                        ip = data[2]
-                        self.notify(ChordNodeReference(id, ip, self.port))
-                    elif option == CLOSEST_PRECEDING_FINGER:
-                        id = int(data[1])
-                        data_resp = self.closest_preceding_finger(id)
+                try:
+                    if option < 8:
+                        if option == FIND_SUCCESSOR:
+                            id = int(data[1])
+                            data_resp = self.find_succ(id)
+                        elif option == FIND_PREDECESSOR:
+                            id = int(data[1])
+                            data_resp = self.find_pred(id)
+                        elif option == GET_SUCCESSOR:
+                            data_resp = self.succ if self.succ else self.ref
+                        elif option == GET_PREDECESSOR:
+                            data_resp = self.pred if self.pred else self.ref
+                        elif option == NOTIFY:
+                            id = int(data[1])
+                            ip = data[2]
+                            self.notify(ChordNodeReference(id, ip, self.port))
+                        elif option == CLOSEST_PRECEDING_FINGER:
+                            id = int(data[1])
+                            data_resp = self.closest_preceding_finger(id)
 
-                else:
-                    if option == GET_VALUE:
-                        key = int(data[1])
-                        data_resp = self.values[key]
-                    elif option == GET_KEYS:
-                        data_resp = [key for key in self.values.keys()]
-                    elif option == STORE_KEY:
-                        key = int(data[1])
-                        value = ",".join(data[2:])
-                        value = eval(value)
+                    else:
+                        if option == GET_VALUE:
+                            key = int(data[1])
+                            data_resp = self.values[key]
+                        elif option == GET_KEYS:
+                            data_resp = [key for key in self.values.keys()]
+                        elif option == STORE_KEY:
+                            key = int(data[1])
+                            value = ",".join(data[2:])
+                            value = eval(value)
 
-                        # print(f'Trying to save data with Key: {key} in Node: {self.id}')
-                        if key not in self.values:
-                            self.values[key] = [value]
-                        else:
-                            self.values[key] += [value]
+                            # print(f'Trying to save data with Key: {key} in Node: {self.id}')
+                            if key not in self.values:
+                                self.values[key] = [value]
+                            else:
+                                self.values[key] += [value]
 
-                        # print(f'Data with Key: {key} saved succesfuly in Node: {self.id}')
+                            # print(f'Data with Key: {key} saved succesfuly in Node: {self.id}')
 
-                        # if self.pred:
-                        #     self.replicate((key, value), self.pred)
+                            # if self.pred:
+                            #     self.replicate((key, value), self.pred)
 
-                        # self.replicate(key, value)
+                            # self.replicate(key, value)
 
-                    elif option == UPDATE_KEY:
-                        # print(f'Trying to update key: {key}')
-                        key = int(data[1])
-                        value = ",".join(data[2:])
-                        value = eval(value)
-                        self.values[key] = value
-                        # print(f'Key:{key} updated succesfuly')
+                        elif option == UPDATE_KEY:
+                            # print(f'Trying to update key: {key}')
+                            key = int(data[1])
+                            value = ",".join(data[2:])
+                            value = eval(value)
+                            self.values[key] = value
+                            # print(f'Key:{key} updated succesfuly')
 
-                    elif option == DELETE_KEY:
-                        # print(f'Trying to delete key: {key}')
-                        key = int(data[1])
-                        del self.values[key]
-                        # print(f'Key: {key} deleted succesfuly')
+                        elif option == DELETE_KEY:
+                            # print(f'Trying to delete key: {key}')
+                            key = int(data[1])
+                            if key in self.values:
+                                del self.values[key]
+                            # print(f'Key: {key} deleted succesfuly')
 
-                    elif option == STORE_REPLICATE:
-                        key = int(data[1])
-                        value = ",".join(data[2:])
-                        # print(f'Trying to save replic from Node: {owner} in Node: {self.id} using key: {key}')
-                        value = eval(value)
+                        elif option == STORE_REPLICATE:
+                            key = int(data[1])
+                            value = ",".join(data[2:])
+                            # print(f'Trying to save replic from Node: {owner} in Node: {self.id} using key: {key}')
+                            value = eval(value)
 
-                        self.save_replic(key, value)
-                        # print(f'Replic saved succesfuly in Node: {self.id} using key: {key}')
+                            self.save_replic(key, value)
+                            # print(f'Replic saved succesfuly in Node: {self.id} using key: {key}')
 
-                    elif option == GET_REPLICATE:
-                        # print(f'Searching for replic with Owner: {owner} and Key: {key} in Node: {self.id}')
-                        key = int(data[1])
-                        data_resp = self.replicates[key]
-                        # print(f'Replic with Key: {key} already founded in Node: {self.id}')
+                        elif option == GET_REPLICATE:
+                            # print(f'Searching for replic with Owner: {owner} and Key: {key} in Node: {self.id}')
+                            key = int(data[1])
+                            data_resp = self.replicates[key]
+                            # print(f'Replic with Key: {key} already founded in Node: {self.id}')
 
-                    elif option == UPDATE_REPLICATE:
-                        # print(f'Trying to update replic from Owner: {owner} and Key: {key} in Node: {self.id}')
-                        key = int(data[1])
-                        value = ",".join(data[2:])
-                        value = eval(value)
-                        self.replicates[key] = value
-                        # if self.pred:
-                        #     self.replicate((key, value), self.pred)
-                        # if self.succ and self.succ.id != self.id:
-                        #     self.replicate((key, value), self.succ)
-                        # print(f'Replic from Owner: {owner} and Key: {key} up to date succesfuly in Node: {self.id}')
-                    elif option == DELETE_REPLICATE:
-                        # print(f'Trying to delete replic from Owner: {owner} and Key: {key} in Node: {self.id}')
-                        # key = int(data[2])
-                        key = int(data[1])
-                        if key in self.replicates:
-                            del self.replicates[key]
-                        # print(f'Replic from Owner: {owner} and Key: {key} up to date succesfuly in Node: {self.id}')
+                        elif option == UPDATE_REPLICATE:
+                            # print(f'Trying to update replic from Owner: {owner} and Key: {key} in Node: {self.id}')
+                            key = int(data[1])
+                            value = ",".join(data[2:])
+                            value = eval(value)
+                            self.replicates[key] = value
+                            # if self.pred:
+                            #     self.replicate((key, value), self.pred)
+                            # if self.succ and self.succ.id != self.id:
+                            #     self.replicate((key, value), self.succ)
+                            # print(f'Replic from Owner: {owner} and Key: {key} up to date succesfuly in Node: {self.id}')
+                        elif option == DELETE_REPLICATE:
+                            # print(f'Trying to delete replic from Owner: {owner} and Key: {key} in Node: {self.id}')
+                            # key = int(data[2])
+                            key = int(data[1])
+                            if key in self.replicates:
+                                del self.replicates[key]
+                            # print(f'Replic from Owner: {owner} and Key: {key} up to date succesfuly in Node: {self.id}')
+                        elif option == GET_MY_VALUES:
+                            key = int(data[1])
+                            data_resp = [
+                                (k, self.values[k])
+                                for k in self.values.keys()
+                                if k <= key
+                            ]
+                            print(f"data_resp: {data_resp}")
+                except ConnectionRefusedError as e:
+                    print(f"Connection refused in start_server in ChordNode: {e}")
+                    data_resp = "connection_refused"
 
-                if data_resp and option < 8:
+                if data_resp and option < 8 and data_resp != "connection_refused":
                     response = f"{data_resp.id},{data_resp.ip}".encode()
                     conn.sendall(response)
                 elif data_resp:
