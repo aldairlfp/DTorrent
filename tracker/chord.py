@@ -236,11 +236,6 @@ class ChordNode:
                 x = self.succ.pred
                 if x.id != self.id:
                     if x and self._inbetween(x.id, self.id, self.succ.id):
-                        # try:
-                        #     self.succ.delete_replicate(self.id)
-                        # except Exception as e:
-                        #     print(f"Failed to comunicate with {self.succ.ip} by {e}")
-
                         for key in self.values.keys():
                             self.succ.delete_replicate(key)
                             self.succ.succ.delete_replicate(key)
@@ -253,10 +248,6 @@ class ChordNode:
 
                 for key in list(self.values.keys()):
                     self.replicate(key, self.values[key])
-
-                # if len(self.values) > 0 and self.succ.id != self.id:
-                #     for key in list(self.values.keys()):
-                #         self.replicate((key, self.values[key]), self.succ)
 
             except ConnectionRefusedError as e:
                 print(f"Connection refuse in stabilize: {e}")
@@ -277,29 +268,7 @@ class ChordNode:
         if node.id == self.id:
             pass
         if not self.pred or self._inbetween(node.id, self.pred.id, self.id):
-            # try:
-            #     self.pred.check_conn()
-            #     self.replicates.pop(self.pred.id)
-
-            # except Exception as e:
-            #     if self.pred:
-            #         logger.debug(f"Node: {self.id} has not replic from {self.pred.id}")
-            #         if self.pred.id in self.replicates:
-            #             for key in list(self.replicates[self.pred.id].keys()):
-            #                 value = self.replicates[self.pred.id][key]
-            #                 if self._inbetween(key, node.id, self.id):
-            #                     self.values[key] = value
-            #                     self.replicate((key, value), node)
-            #                 else:
-            #                     node.store_key(key, value)
-
-            # try:
             self.pred = node
-            # if len(self.values) > 0:
-            #     for key in list(self.values.keys()):
-            #         self.replicate((key, self.values[key]), self.pred)
-            # except Exception as e:
-            #     print(f"Error in notify by {e}")
 
     def fix_fingers(self):
         """Regularly refresh finger table entries."""
@@ -465,11 +434,6 @@ class ChordNode:
 
                             # print(f'Data with Key: {key} saved succesfuly in Node: {self.id}')
 
-                            # if self.pred:
-                            #     self.replicate((key, value), self.pred)
-
-                            # self.replicate(key, value)
-
                         elif option == UPDATE_KEY:
                             # print(f'Trying to update key: {key}')
                             key = int(data[1])
@@ -506,14 +470,9 @@ class ChordNode:
                             value = ",".join(data[2:])
                             value = eval(value)
                             self.replicates[key] = value
-                            # if self.pred:
-                            #     self.replicate((key, value), self.pred)
-                            # if self.succ and self.succ.id != self.id:
-                            #     self.replicate((key, value), self.succ)
                             # print(f'Replic from Owner: {owner} and Key: {key} up to date succesfuly in Node: {self.id}')
                         elif option == DELETE_REPLICATE:
                             # print(f'Trying to delete replic from Owner: {owner} and Key: {key} in Node: {self.id}')
-                            # key = int(data[2])
                             key = int(data[1])
                             if key in self.replicates:
                                 del self.replicates[key]
