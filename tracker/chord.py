@@ -49,7 +49,7 @@ class ChordNodeReference:
                 s.sendall(f"{op},{data}".encode("utf-8"))
                 logger.debug(f"Data sent succesfuly to {self.ip}:{self.port}")
                 response = s.recv(4096)
-                if response == "connection_refused":
+                if response == b"connection_refused":
                     raise ConnectionRefusedError(
                         "Connection refused in send_data -> start_server"
                     )
@@ -363,7 +363,7 @@ class ChordNode:
             if self.id != self.succ.id:
                 self.succ.store_key(key, value, True)
             if self.id != self.succ.succ.id:
-                print(
+                logger.debug(
                     f"In replicate self.id -> {self.id} and self.succ.succ.id -> {self.succ.succ.id}"
                 )
                 self.succ.succ.store_key(key, value, True)
