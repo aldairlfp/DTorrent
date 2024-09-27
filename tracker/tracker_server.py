@@ -220,7 +220,9 @@ def retry_on_connection_refused(func, *args, max_retries=5, delay=3, **kwargs):
         try:
             return func(*args, **kwargs)
         except ConnectionRefusedError as e:
-            print(f"Connection refused. Attempt {attempt + 1} of {max_retries}.")
+            print(
+                f"Connection refused in function '{func.__name__}'. Attempt {attempt + 1} of {max_retries}."
+            )
             time.sleep(delay)  # Wait before retrying
     print("Maximum number of retries reached. Function failed.")
     return None
