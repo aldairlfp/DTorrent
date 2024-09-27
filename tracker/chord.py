@@ -211,14 +211,13 @@ class ChordNode:
             if succ.ip != self.ip:
                 self.succ.update_reference(succ)
 
-                if self.succ.id > self.id:
-                    my_values = self.succ.get_my_values(self.id)
-                    for mv in my_values:
-                        if mv[0] not in self.values:
-                            self.values[mv[0]] = mv[1]
+                my_values = self.succ.get_my_values(self.id)
+                for mv in my_values:
+                    if mv[0] not in self.values:
+                        self.values[mv[0]] = mv[1]
 
-                    for k in self.values.keys():
-                        self.succ.delete_key(k)
+                for k in self.values.keys():
+                    self.succ.delete_key(k)
 
                 for key in list(self.values.keys()):
                     self.replicate(key, self.values[key])
@@ -482,9 +481,10 @@ class ChordNode:
                             data_resp = [
                                 (k, self.values[k])
                                 for k in self.values.keys()
-                                if k <= key
+                                if (key < self.id and k <= key)
+                                or (key > self.id and k > self.id)
                             ]
-                            print(f"data_resp: {data_resp}")
+                            # print(f"data_resp: {data_resp}")
                 except ConnectionRefusedError as e:
                     print(f"Connection refused in start_server in ChordNode: {e}")
                     data_resp = "connection_refused"
