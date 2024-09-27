@@ -69,22 +69,13 @@ class TrackerServer:
         self.bcast_port = BCASTPORT
         self.node: ChordNode = ChordNode(self.host)
         self.elector: leader_election.BroadcastPowElector = (
-            leader_election.BroadcastPowElector(leader_election.PORT)
+            leader_election.BroadcastPowElector(leader_election.PORT, difficulty=5)
         )
 
         self.httpd = HTTPServer((self.host, self.port), TrackerServerHandlerRequests)
         self.httpd.tracker_server = self
 
         threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
-
-    def join(self, node_ip, node_port=8001):
-        try:
-            self.node.join(ChordNodeReference(node_ip, node_ip, node_port))
-        except ConnectionRefusedError as e:
-            print(e)
-
-    def add_torrent(self, torrent):
-        self.torrents.append(torrent)
 
     def loop(self):
         t1 = threading.Thread(target=self.server_thread)  # TODO:
@@ -106,8 +97,8 @@ class TrackerServer:
 
                 print(f"Keys: {self.node.values}")
                 print(f"Replicates: {self.node.replicates}")
-                print(f"Succ -> {self.node.succ}")
-                print(f"Pred -> {self.node.pred}")
+                # print(f"Succ -> {self.node.succ}")
+                # print(f"Pred -> {self.node.pred}")
 
                 time.sleep(10)
         except KeyboardInterrupt as e:
@@ -187,30 +178,49 @@ class TrackerServer:
 
                     conn.close()
 
+    def join(self, node_ip, node_port=8001):
+        retry_on_connection_refused(
+            self.node.join, ChordNodeReference(node_ip, node_ip, node_port)
+        )
+
     def find(self, info_hash):
-        try:
-            return self.node.find(info_hash)
-        except ConnectionRefusedError as e:
-            print(e)
+        return retry_on_connection_refused(self.node.find, info_hash)
 
     def get_peers(self, info_hash):
-        try:
-            return self.node.find_succ(info_hash).get_value(info_hash)
-        except ConnectionRefusedError as e:
-            print(e)
+        return retry_on_connection_refused(self.node.find_succ, info_hash).get_value(
+            info_hash
+        )
 
     def add_peer(self, peer_id, peer_ip, peer_port, info_hash):
-        try:
-            self.node.store_key(info_hash, [peer_id, peer_ip, peer_port])
-        except ConnectionRefusedError as e:
-            print(e)
+        retry_on_connection_refused(
+            self.node.store_key, info_hash, [peer_id, peer_ip, peer_port]
+        )
 
     def get_all(self):
-        try:
-            return self.node.get_all()
-        except ConnectionRefusedError as e:
-            print(e)
+        return retry_on_connection_refused(self.get_all)
 
     @property
     def id(self):
         return self.node.id
+
+
+def retry_on_connection_refused(func, *args, max_retries=5, delay=3, **kwargs):
+    """
+    Tries to execute the function 'func' with the given arguments.
+    If a connection refused exception occurs, it retries the execution.
+
+    :param func: The function to execute.
+    :param args: Positional arguments for the function.
+    :param max_retries: Maximum number of retries.
+    :param delay: Delay time between retries (in seconds).
+    :param kwargs: Keyword arguments for the function.
+    :return: The result of the function if successful, None if it fails after retries.
+    """
+    for attempt in range(max_retries):
+        try:
+            return func(*args, **kwargs)
+        except ConnectionRefusedError as e:
+            print(f"Connection refused. Attempt {attempt + 1} of {max_retries}.")
+            time.sleep(delay)  # Wait before retrying
+    print("Maximum number of retries reached. Function failed.")
+    return None
