@@ -26,6 +26,7 @@ UPDATE_REPLICATE = 15
 DELETE_REPLICATE = 16
 CHECK_CONN = 17
 GET_MY_VALUES = 18
+CLEAN_REPLICATES = 19
 
 
 def getShaRepr(data: str):
@@ -54,6 +55,9 @@ class ChordNodeReference:
                         "Connection refused in send_data -> start_server"
                     )
                 return response
+        except socket.error as e:
+            if e.errno == 104:
+                return b"connection_refused"
         except ConnectionRefusedError as e:
             print(f"Connection refused in _send_data to {self.ip} with op: {op}")
             logger.debug(f"Connection refused in _send_data to {self.ip} with op: {op}")
@@ -136,6 +140,9 @@ class ChordNodeReference:
         print(f"Get My values: {response}... and type is {type(response)}")
         return eval(response) if response != "[]" and response != "" else []
 
+    def clean_replicates(self):
+        self._send_data(CLEAN_REPLICATES)
+
     def __str__(self) -> str:
         return f"{self.id},{self.ip},{self.port}"
 
@@ -209,22 +216,7 @@ class ChordNode:
         if node:
             succ = node.find_successor(self.id)
             if succ.ip != self.ip:
-                self.succ.update_reference(succ)
-
-                my_values = self.succ.get_my_values(self.id)
-                for mv in my_values:
-                    if mv[0] not in self.values:
-                        self.values[mv[0]] = mv[1]
-
-                for k in self.values.keys():
-                    self.succ.delete_key(k)
-
-                for key in list(self.values.keys()):
-                    self.replicate(key, self.values[key])
-
-                # print(f"Notify his succesor {self.succ.id}")
-                self.succ.notify(self.ref)
-                # print(f"join: succ -> {self.succ}, pred -> {self.pred}")
+                self.change_succ(succ)
 
     def stabilize(self):
         """Regular check for correct Chord structure."""
@@ -235,18 +227,10 @@ class ChordNode:
                 x = self.succ.pred
                 if x.id != self.id:
                     if x and self._inbetween(x.id, self.id, self.succ.id):
-                        for key in self.values.keys():
-                            self.succ.delete_replicate(key)
-                            self.succ.succ.delete_replicate(key)
-
-                        self.succ.update_reference(x)
-                        self.succ.notify(self.ref)
-
-                        for key in self.values.keys():
-                            self.succ.delete_key(key)
-
-                for key in list(self.values.keys()):
-                    self.replicate(key, self.values[key])
+                        self.change_succ(x)
+                else:
+                    for key in list(self.values.keys()):
+                        self.replicate(key, self.values[key])
 
             except ConnectionRefusedError as e:
                 print(f"Connection refuse in stabilize: {e}")
@@ -506,9 +490,13 @@ class ChordNode:
                                 or (key > self.id and k > self.id)
                             ]
                             # print(f"data_resp: {data_resp}")
+                        elif option == CLEAN_REPLICATES:
+                            self.replicates.clear()
                 except ConnectionRefusedError as e:
                     print(f"Connection refused in start_server in ChordNode: {e}")
                     data_resp = "connection_refused"
+
+                logger.debug(f"Sending {data_resp} to {addr} with option {option}")
 
                 if data_resp and option < 8 and data_resp != "connection_refused":
                     response = f"{data_resp.id},{data_resp.ip}".encode()
