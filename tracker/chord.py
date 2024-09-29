@@ -369,6 +369,27 @@ class ChordNode:
         except Exception as e:
             print(f"Error in replicate {e}")
 
+    def change_succ(self, succ):
+        self.succ.clean_replicates()
+        self.succ.succ.clean_replicates()
+
+        self.succ.update_reference(succ)
+
+        my_values = self.succ.get_my_values(self.id)
+        for mv in my_values:
+            if mv[0] not in self.values and mv[0] <= self.id:
+                self.values[mv[0]] = mv[1]
+            elif mv[0] > self.id:
+                self.find_succ(mv[0]).store_key(mv[0], mv[1])
+
+        for k in self.values.keys():
+            self.succ.delete_key(k)
+
+        for key in list(self.values.keys()):
+            self.replicate(key, self.values[key])
+
+        self.succ.notify(self.ref)
+
     def start_server(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
