@@ -125,6 +125,8 @@ class TrackerServer:
                             # print(self.host != sender[0])
                             self.join(msg[1])
 
+                    time.sleep(5)
+
                 # except Exception as e:
                 #     print(f"Error in run: {e}")
                 finally:
