@@ -28,6 +28,7 @@ CHECK_CONN = 17
 GET_MY_VALUES = 18
 CLEAN_REPLICATES = 19
 
+#TODO Remember the bug when a node left the ring
 
 def getShaRepr(data: str):
     return int.from_bytes(hashlib.sha1(data.encode()).digest())
@@ -50,18 +51,19 @@ class ChordNodeReference:
                 s.sendall(f"{op},{data}".encode("utf-8"))
                 logger.debug(f"Data sent succesfuly to {self.ip}:{self.port}")
                 response = s.recv(4096)
+                logger.debug(f"Response -> {response} from {self.ip} with op {op}")
                 if response == b"connection_refused":
                     raise ConnectionRefusedError(
                         "Connection refused in send_data -> start_server"
                     )
                 return response
-        except socket.error as e:
-            if e.errno == 104:
-                return b"connection_refused"
+        # except socket.error as e:
+        #     if e.errno == 104:
+        #         raise ConnectionRefusedError("Socket reset conn")
         except ConnectionRefusedError as e:
             print(f"Connection refused in _send_data to {self.ip} with op: {op}")
             logger.debug(f"Connection refused in _send_data to {self.ip} with op: {op}")
-            raise ConnectionRefusedError(e)
+            raise
         except Exception as e:
             print(f"Error sending data: {e}")
             logger.debug(f"Error sending data: {e}")
@@ -223,7 +225,7 @@ class ChordNode:
         while True:
             # print('Estabilizing')
             try:
-                self.succ.check_conn()
+                # self.succ.check_conn()
                 x = self.succ.pred
                 if x.id != self.id:
                     if x and self._inbetween(x.id, self.id, self.succ.id):
