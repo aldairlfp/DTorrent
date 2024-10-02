@@ -105,7 +105,7 @@ class Torrent(object):
                 file_path = os.path.join(root[base_name + 1 :], file)
                 file_info = {
                     "length": os.path.getsize(os.path.join(root, file)),
-                    "path": file_path.split("\\")[1:],
+                    "path": file_path.split("/")[1:],
                 }
                 self.torrent_file["info"]["files"] += [file_info]
 

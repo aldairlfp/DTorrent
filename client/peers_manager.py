@@ -136,26 +136,26 @@ class PeersManager(Thread):
 
     def run(self):
         while self.is_active:
-            read = [peer.socket for peer in self.peers]
-            read, _, _ = select.select(read, [], [], 1)
+            read = [peer.socket for peer in self.peers]            
+            read_list, _, _ = select.select(read, [], [], 1)
 
-            # for socket in read_list:
-            peer = self.get_peer_by_socket(socket)
-            if not peer.healthy:
-                self.remove_peer(peer)
-                continue
+            for socket in read_list:
+                peer = self.get_peer_by_socket(socket)
+                if not peer.healthy:
+                    self.remove_peer(peer)
+                    continue
 
-            try:
-                payload = self._read_from_socket(socket)
-            except Exception as e:
-                logging.error("Recv failed %s" % e.__str__())
-                self.remove_peer(peer)
-                continue
+                try:
+                    payload = self._read_from_socket(socket)
+                except Exception as e:
+                    logging.error("Recv failed %s" % e.__str__())
+                    self.remove_peer(peer)
+                    continue
 
-            peer.read_buffer += payload
+                peer.read_buffer += payload
 
-            for message in peer.get_messages():
-                self._process_new_message(message, peer)
+                for message in peer.get_messages():
+                    self._process_new_message(message, peer)
 
     def _do_handshake(self, peer):
         try:

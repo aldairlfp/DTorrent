@@ -1,129 +1,114 @@
-import hashlib
+import sys
+from client.block import State
+import time
+import client.peers_manager as peers_manager
+import client.pieces_manager as pieces_manager
+import client.torrent as torrent
+import client.tracker as tracker
+import logging
 import os
-import socket
-import urllib.parse
-
-from bcoding import bdecode, bencode
-from client.torrent import Torrent
-from client.piece_manager import PieceManager
+import client.message as message
 
 
-class ConsoleClient:
-    def __init__(self) -> None:
-        self.torrents: list[Torrent] = []
-        self.piece_manager: list[PieceManager] = []
-        self.paths = {}
+class Run(object):
+    percentage_completed = -1
+    last_log_line = ""
 
-    def run_client(self):
-        while True:
-            # Select a piece manager to download a piece
-            # This will be for multiple downloads
-            for piecem in self.piece_manager:
-                if not piecem.have_all_pieces():
-                    # TODO: Chooke Algorith
+    def __init__(self):
+        # try:
+        #     torrent_file = sys.argv[1]
+        # except IndexError:
+        #     logging.error("No torrent file provided!")
+        #     sys.exit(0)
+        torrent_file = "torrents/.torrent"
+        self.torrent = torrent.Torrent().load_from_path(torrent_file)
+        self.tracker = tracker.Tracker(self.torrent)
 
-                    # Take a piece to try downloading
-                    for piece in piecem.pieces:
-                        pass
+        self.pieces_manager = pieces_manager.PiecesManager(self.torrent)
+        self.peers_manager = peers_manager.PeersManager(
+            self.torrent, self.pieces_manager
+        )
 
-    def add_torrent(self, torrent_file: str):
-        torrent = Torrent().load_from_path(torrent_file)
-        self.torrents.append(torrent)
-        self.piece_manager.append(PieceManager(torrent))
+        self.peers_manager.start()
+        logging.info("PeersManager Started")
+        logging.info("PiecesManager Started")
 
-    def get_peers(self, server_addr, info_hash, peer_id, left):
-        host: str = server_addr[0]
-        port: int = server_addr[1]
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.connect((host, port))
+    def start(self):
+        peers_dict = self.tracker.get_peers_from_trackers()
+        self.peers_manager.add_peers(peers_dict.values())
 
-            info_h = urllib.parse.quote(info_hash.hex())
-            info_h = f"info_hash={info_h}"
-            peer_i = f"peer_id={peer_id}"
-            uploaded = "uploaded=0"
-            downloaded = "downloaded=0"
-            port_param = f"port={port}"
-            l = f"left={left}"
-            s.sendall(
-                f"GET /?{info_h}&{peer_i}&{uploaded}&{downloaded}&{port_param}&{l} HTTP/1.1\r\nHost: {host}/\r\n\r\n".encode()
-            )
+        while not self.pieces_manager.all_pieces_completed():
+            if not self.peers_manager.has_unchoked_peers():
+                time.sleep(1)
+                logging.info("No unchocked peers")
+                continue
 
-            response = s.recv(1024)
-            response = response.decode()
-            response = response.split("\r\n")
+            for piece in self.pieces_manager.pieces:
+                index = piece.piece_index
 
-            if response[0] == "HTTP/1.1 200 OK":
-                data = bdecode(response[3][2:-1].encode())
-                return data
-            else:
-                print("Torrent not found in tracker")
+                if self.pieces_manager.pieces[index].is_full:
+                    continue
 
-    def create_torrent(self, server_addr, path, annouce_list, name):
-        torrent_file = Torrent().create_torrent(path, annouce_list, name)
+                peer = self.peers_manager.get_random_peer_having_piece(index)
+                if not peer:
+                    continue
 
-        host = server_addr[0]
-        port = server_addr[1]
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.connect((host, 8000))
+                self.pieces_manager.pieces[index].update_block_status()
 
-            info_hash = urllib.parse.quote(
-                hashlib.sha1(bencode(torrent_file["info"])).digest().hex()
-            )
-            info_hash_param = f"info_hash={info_hash}"
-            peer_id = f"peer_id={Torrent().generate_peer_id()}"
-            uploaded = "uploaded=0"
-            downloaded = "downloaded=0"
-            port_param = f"port={port}"
-            left = f"left=0"
-            s.sendall(
-                f"GET /?{info_hash_param}&{peer_id}&{uploaded}&{downloaded}&{port_param}&{left} HTTP/1.1\r\nHost: {host}/\r\n\r\n".encode()
-            )
+                data = self.pieces_manager.pieces[index].get_empty_block()
+                if not data:
+                    continue
 
-            response = s.recv(1024).decode()
-            response = response.split("\r\n")
+                piece_index, block_offset, block_length = data
+                piece_data = message.Request(
+                    piece_index, block_offset, block_length
+                ).to_bytes()
+                peer.send_to_peer(piece_data)
 
-            print(response[0])
-            self.paths[hashlib.sha1(bencode(torrent_file["info"])).digest()] = (
-                os.path.abspath(path)
-            )
+            self.display_progression()
 
+            time.sleep(0.1)
 
-def load_torrent():
-    return Torrent().load_from_path("torrents/razdacha-ne-suschestvuet.torrent")
+        logging.info("File(s) downloaded successfully.")
+        self.display_progression()
+
+        self._exit_threads()
+
+    def display_progression(self):
+        new_progression = 0
+
+        for i in range(self.pieces_manager.number_of_pieces):
+            for j in range(self.pieces_manager.pieces[i].number_of_blocks):
+                if self.pieces_manager.pieces[i].blocks[j].state == State.FULL:
+                    new_progression += len(self.pieces_manager.pieces[i].blocks[j].data)
+
+        if new_progression == self.percentage_completed:
+            return
+
+        number_of_peers = self.peers_manager.unchoked_peers_count()
+        percentage_completed = float(
+            (float(new_progression) / self.torrent.total_length) * 100
+        )
+
+        current_log_line = "Connected peers: {} - {}% completed | {}/{} pieces".format(
+            number_of_peers,
+            round(percentage_completed, 2),
+            self.pieces_manager.complete_pieces,
+            self.pieces_manager.number_of_pieces,
+        )
+        if current_log_line != self.last_log_line:
+            print(current_log_line)
+
+        self.last_log_line = current_log_line
+        self.percentage_completed = new_progression
+
+    def _exit_threads(self):
+        self.peers_manager.is_active = False
+        os._exit(0)
 
 
 if __name__ == "__main__":
-    # ip = "127.0.0.1"
-    ip = "172.17.0.2"
-    ip = "192.168.9.229"
-    ip = "10.2.0.2"
-    port = 8000
-    tracker = ConsoleClient()
-    # tracker.connect_tracker((ip, 8080))
-    # tracker.create_torrent(
-    #     (ip, 8080),
-    #     "C:\\Users\\aldai\\yugi\\Edison Machina",
-    #     [f"http://{ip}:8080"],
-    #     "WOW335 data",
-    # )
-    tracker.create_torrent(
-        (ip, 8002),
-        "torrents",
-        [f"http://{ip}:{port}"],
-        "torrents",
-    )
-    torrent = load_torrent()
+    logging.basicConfig(level=logging.DEBUG)
 
-    # piece_manager = PieceManager(torrent)
-    # print(piece_manager)
-    # tracker.torrents.append(torrent)
-    # peers = tracker.get_peers(
-    #     (ip, 8000),
-    #     torrent.info_hash,
-    #     torrent.peer_id,
-    #     torrent.selected_total_length,
-    # )
-
-    # threading.Thread(target=download_piece, args=(peers[0][1], peers[0][2])).start()
-
-    # send_piece(tracker, torrent, peers[0][1], peers[0][2], torrent.pieces[0]["path"])
+    run = Run()
+    run.start()
