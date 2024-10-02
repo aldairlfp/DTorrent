@@ -20,7 +20,8 @@ class Run(object):
         # except IndexError:
         #     logging.error("No torrent file provided!")
         #     sys.exit(0)
-        torrent_file = "torrents/.torrent"
+        torrent_file = "torrents/torrents/gta-san-andreas-pc_202204_archive.torrent"
+        # torrent_file = "torrents/.torrent"
         self.torrent = torrent.Torrent().load_from_path(torrent_file)
         self.tracker = tracker.Tracker(self.torrent)
 
