@@ -75,8 +75,9 @@ class Torrent(object):
         self.selected_files = []
         k = 0
         for i in range(len(self.file_names)):
-            fn = "/".join(self.file_names[k]["path"])
-            if selected_files[k] == fn:
+            # fn = "/".join(self.file_names[k]["path"])
+            fn = self.file_names[k]["path"]
+            if selected_files[k].split("/")[1:] == fn:
                 self.selected_files.append(k)
                 k += 1
         self.selected_total_length = 0
@@ -104,7 +105,7 @@ class Torrent(object):
                 file_path = os.path.join(root[base_name + 1 :], file)
                 file_info = {
                     "length": os.path.getsize(os.path.join(root, file)),
-                    "path": file_path.split("\\"),
+                    "path": file_path.split("\\")[1:],
                 }
                 self.torrent_file["info"]["files"] += [file_info]
 
