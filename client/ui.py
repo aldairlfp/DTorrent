@@ -258,7 +258,7 @@ class TorrentClientApp(QMainWindow):
         )
         if current_log_line != self.last_log_line:
             print(current_log_line)
-            item = self.tableProgress.item(self.main_window.tableProgress.rowCount(), 3)
+            item = self.tableProgress.item(self.tableProgress.rowCount(), 3)
             if item:
                 current_progress = item.data(Qt.UserRole + 1000)
                 new_progress = (
