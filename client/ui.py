@@ -195,7 +195,7 @@ class TorrentClientApp(QMainWindow):
         # peers = []
         # for v in peers_dict['peers']:
         #     peers.append(Peer(torrent.number_of_pieces, v[1], v[2]))
-        self.peers_managers[0].add_peers(peers)
+        self.peers_managers[0].add_peers(peers.values())
 
         while not self.pieces_managers[0].all_pieces_completed():
             if not self.peers_managers[0].has_unchoked_peers():

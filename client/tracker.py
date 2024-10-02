@@ -88,7 +88,7 @@ class Tracker(object):
 
             print(
                 "Connected to %d/%d peers"
-                % (len(self.connected_peers), MAX_PEERS_CONNECTED)
+                % (len(self.connected_peers) + 1, MAX_PEERS_CONNECTED)
             )
 
             self.connected_peers[new_peer.__hash__()] = new_peer
