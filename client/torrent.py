@@ -26,11 +26,9 @@ class Torrent(object):
         self.selected_total_length = 0
 
     def __str__(self):
-        rsult = f'peer_id: {self.peer_id}\ninfo_hash: {self.info_hash}\n'
+        rsult = f"peer_id: {self.peer_id}\ninfo_hash: {self.info_hash}\n"
 
         return rsult
-
-
 
     def load_from_path(self, path):
         with open(path, "rb") as file:
@@ -39,7 +37,7 @@ class Torrent(object):
         self.torrent_file = contents
         self.comment = contents["comment"] if "comment" in contents else ""
         self.piece_length = self.torrent_file["info"]["piece length"]
-        self.pieces = self.torrent_file["info"]["pieces"]
+        self.pieces = self.torrent_file["info"]["files"]
         raw_info_hash = bencode(self.torrent_file["info"])
         self.info_hash = hashlib.sha1(raw_info_hash).digest()
         self.peer_id = self.generate_peer_id()
@@ -147,7 +145,7 @@ class Torrent(object):
         if "announce-list" in self.torrent_file:
             return self.torrent_file["announce-list"]
         else:
-            return [[self.torrent_file["announce"]]]
+            return [self.torrent_file["announce"]]
 
     def generate_peer_id(self):
         return "-TR2940-" + str(int(time.time())) + "TR"

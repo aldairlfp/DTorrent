@@ -11,7 +11,7 @@ if __name__ == "__main__":
     date_format = "%H:%M:%S"
 
     logging.basicConfig(
-        filename= f'logs_for_DTorrent.log',
+        filename= f'logs_{socket.gethostbyname(socket.gethostname())}.log',
         format= log_format,
         datefmt= date_format,
         filemode= 'w')

@@ -1,13 +1,16 @@
+__author__ = 'alexisgallepe'
+
 import hashlib
 import math
 import time
 import logging
 
+from pubsub import pub
 from client.block import Block, BLOCK_SIZE, State
 
 
 class Piece(object):
-    def __init__(self, piece_index: int, piece_size: int, piece_hash: str, piece_manager):
+    def __init__(self, piece_index: int, piece_size: int, piece_hash: str):
         self.piece_index: int = piece_index
         self.piece_size: int = piece_size
         self.piece_hash: str = piece_hash
@@ -16,7 +19,6 @@ class Piece(object):
         self.raw_data: bytes = b''
         self.number_of_blocks: int = int(math.ceil(float(piece_size) / BLOCK_SIZE))
         self.blocks: list[Block] = []
-        self.piece_manager = piece_manager
 
         self._init_blocks()
 
@@ -64,8 +66,8 @@ class Piece(object):
         self.is_full = True
         self.raw_data = data
         self._write_piece_on_disk()
+        pub.sendMessage('PiecesManager.PieceCompleted', piece_index=self.piece_index)
 
-        self.piece_manager.update_bitfield(self.piece_index)
         return True
 
     def _init_blocks(self):

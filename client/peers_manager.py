@@ -1,11 +1,15 @@
+import time
 import select
 from threading import Thread
+from pubsub import pub
+import client.rarest_piece as rarest_piece
 import logging
+import client.message as message
+import client.peer as peer
 import errno
 import socket
 import random
 
-from client import rarest_piece, peer, message
 
 class PeersManager(Thread):
     def __init__(self, torrent, pieces_manager):
@@ -17,24 +21,37 @@ class PeersManager(Thread):
         self.pieces_by_peer = [[0, []] for _ in range(pieces_manager.number_of_pieces)]
         self.is_active = True
 
-    def get_left(self):
-        return self.pieces_manager.number_of_pieces - self.pieces_manager.complete_pieces
+        # Events
+        pub.subscribe(self.peer_requests_piece, "PeersManager.PeerRequestsPiece")
+        pub.subscribe(self.peers_bitfield, "PeersManager.updatePeersBitfield")
 
     def peer_requests_piece(self, request=None, peer=None):
         if not request or not peer:
             logging.error("empty request/peer message")
 
-        piece_index, block_offset, block_length = request.piece_index, request.block_offset, request.block_length
+        piece_index, block_offset, block_length = (
+            request.piece_index,
+            request.block_offset,
+            request.block_length,
+        )
 
         block = self.pieces_manager.get_block(piece_index, block_offset, block_length)
         if block:
-            piece = message.Piece(piece_index, block_offset, block_length, block).to_bytes()
+            piece = message.Piece(
+                piece_index, block_offset, block_length, block
+            ).to_bytes()
             peer.send_to_peer(piece)
-            logging.info("Sent piece index {} to peer : {}".format(request.piece_index, peer.ip))
+            logging.info(
+                "Sent piece index {} to peer : {}".format(request.piece_index, peer.ip)
+            )
 
     def peers_bitfield(self, bitfield=None):
         for i in range(len(self.pieces_by_peer)):
-            if bitfield[i] == 1 and peer not in self.pieces_by_peer[i][1] and self.pieces_by_peer[i][0]:
+            if (
+                bitfield[i] == 1
+                and peer not in self.pieces_by_peer[i][1]
+                and self.pieces_by_peer[i][0]
+            ):
                 self.pieces_by_peer[i][1].append(peer)
                 self.pieces_by_peer[i][0] = len(self.pieces_by_peer[i][1])
 
@@ -42,7 +59,12 @@ class PeersManager(Thread):
         ready_peers = []
 
         for peer in self.peers:
-            if peer.is_eligible() and peer.is_unchoked() and peer.am_interested() and peer.has_piece(index):
+            if (
+                peer.is_eligible()
+                and peer.is_unchoked()
+                and peer.am_interested()
+                and peer.has_piece(index)
+            ):
                 ready_peers.append(peer)
 
         return random.choice(ready_peers) if ready_peers else None
@@ -60,10 +82,9 @@ class PeersManager(Thread):
                 cpt += 1
         return cpt
 
-
     @staticmethod
     def _read_from_socket(sock):
-        data = b''
+        data = b""
 
         while True:
             try:
@@ -86,6 +107,15 @@ class PeersManager(Thread):
     def run(self):
         while self.is_active:
             read = [peer.socket for peer in self.peers]
+
+            # print("Current peers:", self.peers)
+            read = [peer.socket for peer in self.peers if peer.socket.fileno() != -1]
+
+            if not read:
+                # print("No valid sockets available for reading.")
+                continue
+
+            print("Valid sockets for reading:", read)
             read_list, _, _ = select.select(read, [], [], 1)
 
             for socket in read_list:
@@ -134,6 +164,10 @@ class PeersManager(Thread):
 
             self.peers.remove(peer)
 
+        # for rarest_piece in self.rarest_pieces.rarest_pieces:
+        #    if peer in rarest_piece["peers"]:
+        #        rarest_piece["peers"].remove(peer)
+
     def get_peer_by_socket(self, socket):
         for peer in self.peers:
             if socket == peer.socket:
@@ -142,7 +176,9 @@ class PeersManager(Thread):
         raise Exception("Peer not present in peer_list")
 
     def _process_new_message(self, new_message: message.Message, peer: peer.Peer):
-        if isinstance(new_message, message.Handshake) or isinstance(new_message, message.KeepAlive):
+        if isinstance(new_message, message.Handshake) or isinstance(
+            new_message, message.KeepAlive
+        ):
             logging.error("Handshake or KeepALive should have already been handled")
 
         elif isinstance(new_message, message.Choke):

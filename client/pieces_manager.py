@@ -1,15 +1,17 @@
-from client.torrent import Torrent
-from client.piece import Piece
+__author__ = 'alexisgallepe'
 
+import client.piece as piece
 import bitstring
 import logging
+from pubsub import pub
+
 
 class PiecesManager(object):
-    def __init__(self, torrent: Torrent):
-        self.torrent: Torrent = torrent
+    def __init__(self, torrent):
+        self.torrent = torrent
         self.number_of_pieces = int(torrent.number_of_pieces)
         self.bitfield = bitstring.BitArray(self.number_of_pieces)
-        self.pieces: list[Piece] = self._generate_pieces()
+        self.pieces = self._generate_pieces()
         self.files = self._load_files()
         self.complete_pieces = 0
 
@@ -18,6 +20,8 @@ class PiecesManager(object):
             self.pieces[id_piece].files.append(file)
 
         # events
+        pub.subscribe(self.receive_block_piece, 'PiecesManager.Piece')
+        pub.subscribe(self.update_bitfield, 'PiecesManager.PieceCompleted')
 
     def update_bitfield(self, piece_index):
         self.bitfield[piece_index] = 1
@@ -45,7 +49,7 @@ class PiecesManager(object):
 
         return None
 
-    def is_complete(self):
+    def all_pieces_completed(self):
         for piece in self.pieces:
             if not piece.is_full:
                 return False
@@ -62,9 +66,9 @@ class PiecesManager(object):
 
             if i == last_piece:
                 piece_length = self.torrent.total_length - (self.number_of_pieces - 1) * self.torrent.piece_length
-                pieces.append(Piece(i, piece_length, self.torrent.pieces[start:end], self))
+                pieces.append(piece.Piece(i, piece_length, self.torrent.pieces[start:end]))
             else:
-                pieces.append(Piece(i, self.torrent.piece_length, self.torrent.pieces[start:end], self))
+                pieces.append(piece.Piece(i, self.torrent.piece_length, self.torrent.pieces[start:end]))
 
         return pieces
 

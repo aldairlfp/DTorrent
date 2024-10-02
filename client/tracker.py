@@ -2,7 +2,11 @@ import ipaddress
 import struct
 import json
 from client import peer
-from client.message import UdpTrackerConnection, UdpTrackerAnnounce, UdpTrackerAnnounceOutput
+from client.message import (
+    UdpTrackerConnection,
+    UdpTrackerAnnounce,
+    UdpTrackerAnnounceOutput,
+)
 from client.peers_manager import PeersManager
 from client.torrent import Torrent
 
@@ -34,36 +38,40 @@ class Tracker(object):
         self.connected_peers = {}
         self.dict_sock_addr = {}
 
-
     def __str__(self):
         result = ""
         for key in self.connected_peers:
-            result += f'peer: {key}\n'
+            result += f"peer: {key}\n"
 
         result += str(self.torrent)
 
-        return result        
+        return result
 
-    def get_peers_from_trackers(self, server_addr, left):
+    def get_peers_from_trackers(self):
+        for i, tracker in enumerate(self.torrent.announce_list):
+            if len(self.dict_sock_addr) >= MAX_PEERS_TRY_CONNECT:
+                break
 
-        params = {
-            "info_h": urllib.parse.quote(self.torrent.info_hash.hex()),
-            "peer_i": {self.torrent.peer_id},
-            "uploaded": 0,
-            "downloaded": 0,
-            "port": 6881,
-            "left": left,
-        }
+            tracker_url = tracker[0]
 
-        response = requests.get(server_addr, params=params)
+            if str.startswith(tracker_url, "http"):
+                try:
+                    self.http_scraper(self.torrent, tracker_url)
+                except Exception as e:
+                    logging.error("HTTP scraping failed: %s " % e.__str__())
 
-        if response.status_code == 200:
-            data = json.loads(response.content)
+            elif str.startswith(tracker_url, "udp"):
+                try:
+                    self.udp_scrapper(tracker_url)
+                except Exception as e:
+                    logging.error("UDP scraping failed: %s " % e.__str__())
 
-            return data
-        else:
-            print("Torrent not found in tracker")
+            else:
+                logging.error("unknown scheme for: %s " % tracker_url)
 
+        self.try_peer_connect()
+
+        return self.connected_peers
 
     def try_peer_connect(self):
         logging.info("Trying to connect to %d peer(s)" % len(self.dict_sock_addr))
@@ -72,51 +80,42 @@ class Tracker(object):
             if len(self.connected_peers) >= MAX_PEERS_CONNECTED:
                 break
 
-            new_peer = peer.Peer(int(self.torrent.number_of_pieces), sock_addr.ip, sock_addr.port)
+            new_peer = peer.Peer(
+                int(self.torrent.number_of_pieces), sock_addr.ip, sock_addr.port
+            )
             if not new_peer.connect():
                 continue
 
-            print('Connected to %d/%d peers' % (len(self.connected_peers), MAX_PEERS_CONNECTED))
+            print(
+                "Connected to %d/%d peers"
+                % (len(self.connected_peers), MAX_PEERS_CONNECTED)
+            )
 
             self.connected_peers[new_peer.__hash__()] = new_peer
 
     def http_scraper(self, torrent, tracker):
         params = {
-            'info_hash': torrent.info_hash,
-            'peer_id': torrent.peer_id,
-            'uploaded': 0,
-            'downloaded': 0,
-            'port': 6881,
-            'left': torrent.total_length,
-            'event': 'started'
+            "info_hash": urllib.parse.quote(torrent.info_hash.hex()),
+            "peer_id": torrent.peer_id,
+            "uploaded": 0,
+            "downloaded": 0,
+            "port": 6881,
+            "left": torrent.total_length,
+            "event": "started",
         }
 
         try:
-            answer_tracker = requests.get(tracker, params=params, timeout=5)
-            list_peers = bdecode(answer_tracker.content)
-            offset=0
-            if not type(list_peers['peers']) == list:
-                '''
-                    - Handles bytes form of list of peers
-                    - IP address in bytes form:
-                        - Size of each IP: 6 bytes
-                        - The first 4 bytes are for IP address
-                        - Next 2 bytes are for port number
-                    - To unpack initial 4 bytes !i (big-endian, 4 bytes) is used.
-                    - To unpack next 2 byets !H(big-endian, 2 bytes) is used.
-                '''
-                for _ in range(len(list_peers['peers'])//6):
-                    ip = struct.unpack_from("!i", list_peers['peers'], offset)[0]
-                    ip = socket.inet_ntoa(struct.pack("!i", ip))
-                    offset += 4
-                    port = struct.unpack_from("!H",list_peers['peers'], offset)[0]
-                    offset += 2
-                    s = SockAddr(ip,port)
-                    self.dict_sock_addr[s.__hash__()] = s
+            response = requests.get(tracker, params=params, timeout=5)
+
+            if response.status_code == 200:
+                data = json.loads(response.content)
+                if "peers" in data:
+                    for v in data["peers"]:
+                        s = SockAddr(v[1], int(v[2]))
+                        self.dict_sock_addr[s.__hash__()] = s
+                    print(data)
             else:
-                for p in list_peers['peers']:
-                    s = SockAddr(p['ip'], p['port'])
-                    self.dict_sock_addr[s.__hash__()] = s
+                print("Torrent not found in tracker")
 
         except Exception as e:
             logging.exception("HTTP scraping failed: %s" % e.__str__())
@@ -142,8 +141,9 @@ class Tracker(object):
         tracker_connection_output = UdpTrackerConnection()
         tracker_connection_output.from_bytes(response)
 
-        tracker_announce_input = UdpTrackerAnnounce(torrent.info_hash, tracker_connection_output.conn_id,
-                                                    torrent.peer_id)
+        tracker_announce_input = UdpTrackerAnnounce(
+            torrent.info_hash, tracker_connection_output.conn_id, torrent.peer_id
+        )
         response = self.send_message((ip, port), sock, tracker_announce_input)
 
         if not response:
@@ -174,7 +174,9 @@ class Tracker(object):
             logging.debug("Timeout : %s" % e)
             return
         except Exception as e:
-            logging.exception("Unexpected error when sending message : %s" % e.__str__())
+            logging.exception(
+                "Unexpected error when sending message : %s" % e.__str__()
+            )
             return
 
         if len(response) < size:

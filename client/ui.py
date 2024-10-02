@@ -8,6 +8,7 @@ import urllib
 import requests
 import random
 import os
+import socket
 
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import (
@@ -30,8 +31,13 @@ from client import message
 from client.torrent import Torrent
 from client.utils import transform_length
 from client.tracker import Tracker
-from client.piece_manager import PiecesManager
+from client.pieces_manager import PiecesManager
 from client.peers_manager import PeersManager
+from client.block import State
+from client.peer import Peer
+
+MAX_PEERS_TRY_CONNECT = 30
+MAX_PEERS_CONNECTED = 8
 
 
 class TorrentClientApp(QMainWindow):
@@ -43,7 +49,9 @@ class TorrentClientApp(QMainWindow):
         )
 
         self.actionLoad_torrent.triggered.connect(self.open_file_dialog_to_add_torrent)
-        self.actionCreate_torrent.triggered.connect(self.open_file_dialog_to_create_torrent)
+        self.actionCreate_torrent.triggered.connect(
+            self.open_file_dialog_to_create_torrent
+        )
 
         headers = ["#", "Name", "Size", "Progress"]
         self.tableProgress.setColumnCount(4)
@@ -56,39 +64,54 @@ class TorrentClientApp(QMainWindow):
         self.peers_managers: list[PeersManager] = []
         self.trackers: list[Tracker] = []
 
-        self.server_address = "http://192.168.43.155:8000"
+        self.server_address = socket.gethostbyname(socket.gethostname())
+
+    def _exit_threads(self):
+        self.peers_manager.is_active = False
+        os._exit(0)
 
     def open_file_dialog_to_create_torrent(self):
-        options = QFileDialog.Options()
-        options |= QFileDialog.DontUseNativeDialog
+        # Open the folder selection dialog
+        folder_path = QFileDialog.getExistingDirectory(self, "Select Folder")
 
-        file_path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Select Torrent File",
-            "",
-            "Torrent Files (*.torrent)",
-            options=options,
-        )
+        if folder_path:  # Check if a folder was selected
+            folder_name = os.path.basename(folder_path)
+            self.create_torrent(
+                self.server_address,
+                folder_path,
+                [f"http://{self.server_address}:8000"],
+                folder_name,
+            )
 
-        def parse_name(path):
-            intervals = path.split("/")
-            i = len(intervals)
-            while i > 0:
-                if len(intervals[i]) > 0:
-                    return intervals[-1]
-            
-                i -= 1
+        # options = QFileDialog.Options()
+        # options |= QFileDialog.DontUseNativeDialog
 
-            return 'Default'
+        # file_path, _ = QFileDialog.getOpenFileName(
+        #     self,
+        #     "Select Torrent File",
+        #     "",
+        #     "Torrent Files (*.torrent)",
+        #     options=options,
+        # )
 
-        startingDir = os.getcwd()
-        destDir = QFileDialog.getExistingDirectory(None, 
-                                                         'Open working directory', 
-                                                         startingDir, 
-                                                         QFileDialog.ShowDirsOnly)
-        
-        name = parse_name(destDir)
-        self.create_torrent(self.server_address, destDir, file_path, name)
+        # def parse_name(path):
+        #     intervals = path.split("/")
+        #     i = len(intervals)
+        #     while i > 0:
+        #         if len(intervals[i]) > 0:
+        #             return intervals[-1]
+
+        #         i -= 1
+
+        #     return "Default"
+
+        # startingDir = os.getcwd()
+        # destDir = QFileDialog.getExistingDirectory(
+        #     None, "Open working directory", startingDir, QFileDialog.ShowDirsOnly
+        # )
+
+        # name = parse_name(destDir)
+        # self.create_torrent(self.server_address, destDir, file_path, name)
 
     def open_file_dialog_to_add_torrent(self):
         options = QFileDialog.Options()
@@ -108,13 +131,18 @@ class TorrentClientApp(QMainWindow):
             self.add_torrent_window.show()
             self.add_torrent(file_path)
 
-
     def add_torrent(self, torrent_file: str):
         torrent = Torrent().load_from_path(torrent_file)
         self.torrents.append(torrent)
-        self.pieces_managers.append(PiecesManager(torrent))
-        self.peers_managers.append(PeersManager(torrent, self.pieces_managers[-1]))
         self.trackers.append(Tracker(torrent))
+
+        pieces_manager = PiecesManager(torrent)
+        self.pieces_managers.append(pieces_manager)
+
+        peers_manager = PeersManager(torrent, pieces_manager)
+        self.peers_managers.append(peers_manager)
+
+        peers_manager.start()
 
     def get_peers(self, server_addr, info_hash, peer_id, left):
 
@@ -151,78 +179,100 @@ class TorrentClientApp(QMainWindow):
             "left": 0,
         }
 
-        response = requests.get(server_addr, params=params)
+        response = requests.get(f"http://{server_addr}:8000", params=params)
 
         print(json.loads(response.content))
 
     def download_loop(self):
-        i = 0
-        peers = []
-        while len(self.trackers) > 0 and i < len(self.trackers):
-            tracker = self.trackers[i]
-            peer_manager = self.peers_managers[i]
-            try:
-                print('Peer index is correct')
-                left = peer_manager.get_left()
-                peers = tracker.get_peers_from_trackers(self.server_address, left)['peers']
-                break
-            except Exception as e:
-                print(e)
-                i += 1
+        peers = self.trackers[0].get_peers_from_trackers()
+        # torrent = self.torrents[0]
+        # peers_dict = self.get_peers(
+        #     torrent.announce_list[0][0],
+        #     torrent.info_hash,
+        #     torrent.peer_id,
+        #     torrent.selected_total_length,
+        # )
+        # peers = []
+        # for v in peers_dict['peers']:
+        #     peers.append(Peer(torrent.number_of_pieces, v[1], v[2]))
+        self.peers_managers[0].add_peers(peers)
 
-
-        if len(peers) == 0:
-            print('No tracker available.')
-            return
-        
-
-        peer_manager.add_peers(peers)
-        # Select a piece manager to download a piece
-        # This will be for multiple downloads
-
-        piece_manager = self.pieces_managers[-1]
-        
-        while not piece_manager.is_complete():
-            if not peer_manager.has_unchoked_peers():
-                print('No unlocked peers')
-                time.sleep(5)
-                peers = tracker.get_peers_from_trackers(self.server_address, left)
-                peer_manager.add_peers(peers.values())
+        while not self.pieces_manager.all_pieces_completed():
+            if not self.peers_manager.has_unchoked_peers():
+                time.sleep(1)
                 continue
-            
-            # Take a piece to try downloading
-            for piece in piece_manager.pieces:
+
+            for piece in self.pieces_manager.pieces:
                 index = piece.piece_index
 
-                # If the piece is downloaded try the next one
-                if piece_manager.pieces[index].is_full:
+                if self.pieces_manager.pieces[index].is_full:
                     continue
 
-                # Get a random peer having the piece
-                peer = peer_manager.get_random_peer_having_piece(index)
+                peer = self.peers_manager.get_random_peer_having_piece(index)
                 if not peer:
                     continue
-                        
-                # Update the state of the block, freeing
-                # when is pending for too long
-                piece_manager.pieces[index].update_block_state()
 
-                data = piece_manager.pieces[index].get_empty_block()
-                    
-                if not data:        
+                self.pieces_manager.pieces[index].update_block_status()
+
+                data = self.pieces_manager.pieces[index].get_empty_block()
+                if not data:
                     continue
 
                 piece_index, block_offset, block_length = data
-
-                # Request the piece to the peer
                 piece_data = message.Request(
                     piece_index, block_offset, block_length
                 ).to_bytes()
-            
                 peer.send_to_peer(piece_data)
 
+            self.display_progression()
+
+            time.sleep(0.1)
+
+        self.display_progression()
+
+        self._exit_threads()
+
+    def display_progression(self):
+        new_progression = 0
+
+        for i in range(self.pieces_manager.number_of_pieces):
+            for j in range(self.pieces_manager.pieces[i].number_of_blocks):
+                if self.pieces_manager.pieces[i].blocks[j].state == State.FULL:
+                    new_progression += len(self.pieces_manager.pieces[i].blocks[j].data)
+
+        if new_progression == self.percentage_completed:
+            return
+
+        number_of_peers = self.peers_manager.unchoked_peers_count()
+        percentage_completed = float(
+            (float(new_progression) / self.torrent.total_length) * 100
+        )
+
+        current_log_line = "Connected peers: {} - {}% completed | {}/{} pieces".format(
+            number_of_peers,
+            round(percentage_completed, 2),
+            self.pieces_manager.complete_pieces,
+            self.pieces_manager.number_of_pieces,
+        )
+        if current_log_line != self.last_log_line:
+            print(current_log_line)
+            item = self.tableProgress.item(self.main_window.tableProgress.rowCount(), 3)
+            if item:
+                current_progress = item.data(Qt.UserRole + 1000)
+                new_progress = current_progress + random.randint(
+                    1, 20
+                )  # Randomly increase progress
+                new_progress = min(new_progress, 100)  # Cap at 100%
+                item.setData(Qt.UserRole + 1000, new_progress)
+                self.tableProgress.update()  # Update the table to repaint
+
+        self.last_log_line = current_log_line
+        self.percentage_completed = new_progression
+
     def start_download(self):
-        threading.Thread(target=self.download_loop, daemon=True).start()
+        # threading.Thread(target=self.download_loop, daemon=True).start()
+        self.download_loop()
+
 
 class AddTorrentWindow(QMainWindow):
     def __init__(self, torrent: Torrent, main_window: TorrentClientApp) -> None:
@@ -371,6 +421,7 @@ class AddTorrentWindow(QMainWindow):
             item.setText(1, file_type)
             item.setText(2, file_size)
 
+
 class CreateTorrentwindow(QMainWindow):
     def __init__(self, main_window: TorrentClientApp) -> None:
         super(AddTorrentWindow, self).__init__()
@@ -383,8 +434,8 @@ class CreateTorrentwindow(QMainWindow):
 
         self.treeTorrentFile.setHeaderLabels(["Name", "Type", "Size"])
         self.treeTorrentFile.header().resizeSection(0, 200)
-        self.show_torrent_data(torrent)
-        self.lineNameTorrent.setText(torrent.name)
+        self.show_torrent_data(self.torrent)
+        self.lineNameTorrent.setText(self.torrent.name)
 
         self.buttonOKAddTorrent.clicked.connect(self.add_torrent_to_main_window)
 
@@ -400,7 +451,6 @@ class CreateTorrentwindow(QMainWindow):
         if folder_path:
             self.comboPathDir.addItem(folder_path)
             self.comboPathDir.setCurrentText(folder_path)
-
 
     def get_checked_elements(self):
         checked_items = []
@@ -420,6 +470,7 @@ class CreateTorrentwindow(QMainWindow):
 
         recurse(self.treeTorrentFile.invisibleRootItem(), "")
         return checked_items
+
 
 class ProgressDelegate(QStyledItemDelegate):
     def paint(self, painter, option, index):
