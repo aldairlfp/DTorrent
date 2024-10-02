@@ -197,24 +197,24 @@ class TorrentClientApp(QMainWindow):
         #     peers.append(Peer(torrent.number_of_pieces, v[1], v[2]))
         self.peers_managers[0].add_peers(peers)
 
-        while not self.pieces_manager.all_pieces_completed():
-            if not self.peers_manager.has_unchoked_peers():
+        while not self.pieces_managers[0].all_pieces_completed():
+            if not self.peers_managers[0].has_unchoked_peers():
                 time.sleep(1)
                 continue
 
-            for piece in self.pieces_manager.pieces:
+            for piece in self.pieces_managers[0].pieces:
                 index = piece.piece_index
 
-                if self.pieces_manager.pieces[index].is_full:
+                if self.pieces_managers[0].pieces[index].is_full:
                     continue
 
-                peer = self.peers_manager.get_random_peer_having_piece(index)
+                peer = self.peers_managers[0].get_random_peer_having_piece(index)
                 if not peer:
                     continue
 
-                self.pieces_manager.pieces[index].update_block_status()
+                self.pieces_managers[0].pieces[index].update_block_status()
 
-                data = self.pieces_manager.pieces[index].get_empty_block()
+                data = self.pieces_managers[0].pieces[index].get_empty_block()
                 if not data:
                     continue
 
@@ -235,15 +235,17 @@ class TorrentClientApp(QMainWindow):
     def display_progression(self):
         new_progression = 0
 
-        for i in range(self.pieces_manager.number_of_pieces):
-            for j in range(self.pieces_manager.pieces[i].number_of_blocks):
-                if self.pieces_manager.pieces[i].blocks[j].state == State.FULL:
-                    new_progression += len(self.pieces_manager.pieces[i].blocks[j].data)
+        for i in range(self.pieces_managers[0].number_of_pieces):
+            for j in range(self.pieces_managers[0].pieces[i].number_of_blocks):
+                if self.pieces_managers[0].pieces[i].blocks[j].state == State.FULL:
+                    new_progression += len(
+                        self.pieces_managers[0].pieces[i].blocks[j].data
+                    )
 
         if new_progression == self.percentage_completed:
             return
 
-        number_of_peers = self.peers_manager.unchoked_peers_count()
+        number_of_peers = self.peers_managers[0].unchoked_peers_count()
         percentage_completed = float(
             (float(new_progression) / self.torrent.total_length) * 100
         )
@@ -251,16 +253,16 @@ class TorrentClientApp(QMainWindow):
         current_log_line = "Connected peers: {} - {}% completed | {}/{} pieces".format(
             number_of_peers,
             round(percentage_completed, 2),
-            self.pieces_manager.complete_pieces,
-            self.pieces_manager.number_of_pieces,
+            self.pieces_managers[0].complete_pieces,
+            self.pieces_managers[0].number_of_pieces,
         )
         if current_log_line != self.last_log_line:
             print(current_log_line)
             item = self.tableProgress.item(self.main_window.tableProgress.rowCount(), 3)
             if item:
                 current_progress = item.data(Qt.UserRole + 1000)
-                new_progress = current_progress + random.randint(
-                    1, 20
+                new_progress = (
+                    current_progress + new_progression
                 )  # Randomly increase progress
                 new_progress = min(new_progress, 100)  # Cap at 100%
                 item.setData(Qt.UserRole + 1000, new_progress)
@@ -270,8 +272,8 @@ class TorrentClientApp(QMainWindow):
         self.percentage_completed = new_progression
 
     def start_download(self):
-        # threading.Thread(target=self.download_loop, daemon=True).start()
-        self.download_loop()
+        threading.Thread(target=self.download_loop, daemon=True).start()
+        # self.download_loop()
 
 
 class AddTorrentWindow(QMainWindow):
