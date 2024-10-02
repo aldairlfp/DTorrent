@@ -66,6 +66,15 @@ class TorrentClientApp(QMainWindow):
 
         self.server_address = socket.gethostbyname(socket.gethostname())
 
+        threading.Thread(target=self.listen_all, daemon=True).start()
+
+    def listen_all(self):
+        while True:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                s.bind((socket.gethostbyname(socket.gethostname()), 6881))
+                s.listen(10)
+
     def _exit_threads(self):
         self.peers_manager.is_active = False
         os._exit(0)

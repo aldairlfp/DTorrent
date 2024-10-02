@@ -26,14 +26,6 @@ class Peer(object):
             "peer_interested": False,
         }
         self.socket = None
-        threading.Thread(target=self.listen_all, daemon=True).start()
-
-    def listen_all(self):
-        while True:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                s.bind((self.ip, self.port))
-                s.listen(10)
 
     def __hash__(self):
         return "%s:%d" % (self.ip, self.port)
