@@ -9,8 +9,38 @@ import client.peer as peer
 import errno
 import socket
 import random
+import platform
 
+def cross_platform_select(read_sockets, write_sockets=None, exception_sockets=None, timeout=None):
+    # Default to empty lists if None is provided
+    write_sockets = write_sockets or []
+    exception_sockets = exception_sockets or []
 
+    # Ensure all sockets are valid before calling select
+    read_sockets = [sock for sock in read_sockets if isinstance(sock, socket.socket) and sock.fileno() != -1]
+    write_sockets = [sock for sock in write_sockets if isinstance(sock, socket.socket) and sock.fileno() != -1]
+    exception_sockets = [sock for sock in exception_sockets if isinstance(sock, socket.socket) and sock.fileno() != -1]
+
+    if not read_sockets:
+        # print("No valid sockets to select.")
+        return [], [], []
+
+    try:
+        # Special handling for Windows (if needed)
+        if platform.system() == "Windows":
+            # On Windows, we might want to handle certain edge cases
+            # For example, we could limit the number of sockets being monitored
+            max_windows_sockets = 64  # Example limit; adjust as necessary
+            if len(read_sockets) > max_windows_sockets:
+                # print(f"Limiting to {max_windows_sockets} sockets due to Windows limitations.")
+                read_sockets = read_sockets[:max_windows_sockets]
+
+        # Call select with the validated socket lists
+        return select.select(read_sockets, write_sockets, exception_sockets, timeout)
+    except Exception as e:
+        print(f"Error during select: {e}")
+        return [], [], []
+    
 class PeersManager(Thread):
     def __init__(self, torrent, pieces_manager):
         Thread.__init__(self)
@@ -107,34 +137,25 @@ class PeersManager(Thread):
     def run(self):
         while self.is_active:
             read = [peer.socket for peer in self.peers]
+            read, _, _ = select.select(read, [], [], 1)
 
-            # print("Current peers:", self.peers)
-            read = [peer.socket for peer in self.peers if peer.socket.fileno() != -1]
-
-            if not read:
-                # print("No valid sockets available for reading.")
+            # for socket in read_list:
+            peer = self.get_peer_by_socket(socket)
+            if not peer.healthy:
+                self.remove_peer(peer)
                 continue
 
-            print("Valid sockets for reading:", read)
-            read_list, _, _ = select.select(read, [], [], 1)
+            try:
+                payload = self._read_from_socket(socket)
+            except Exception as e:
+                logging.error("Recv failed %s" % e.__str__())
+                self.remove_peer(peer)
+                continue
 
-            for socket in read_list:
-                peer = self.get_peer_by_socket(socket)
-                if not peer.healthy:
-                    self.remove_peer(peer)
-                    continue
+            peer.read_buffer += payload
 
-                try:
-                    payload = self._read_from_socket(socket)
-                except Exception as e:
-                    logging.error("Recv failed %s" % e.__str__())
-                    self.remove_peer(peer)
-                    continue
-
-                peer.read_buffer += payload
-
-                for message in peer.get_messages():
-                    self._process_new_message(message, peer)
+            for message in peer.get_messages():
+                self._process_new_message(message, peer)
 
     def _do_handshake(self, peer):
         try:
