@@ -1,4 +1,3 @@
-import time
 import select
 from threading import Thread
 from pubsub import pub
@@ -9,52 +8,6 @@ import client.peer as peer
 import errno
 import socket
 import random
-import platform
-
-
-def cross_platform_select(
-    read_sockets, write_sockets=None, exception_sockets=None, timeout=None
-):
-    # Default to empty lists if None is provided
-    write_sockets = write_sockets or []
-    exception_sockets = exception_sockets or []
-
-    # Ensure all sockets are valid before calling select
-    read_sockets = [
-        sock
-        for sock in read_sockets
-        if isinstance(sock, socket.socket) and sock.fileno() != -1
-    ]
-    write_sockets = [
-        sock
-        for sock in write_sockets
-        if isinstance(sock, socket.socket) and sock.fileno() != -1
-    ]
-    exception_sockets = [
-        sock
-        for sock in exception_sockets
-        if isinstance(sock, socket.socket) and sock.fileno() != -1
-    ]
-
-    if not read_sockets:
-        # print("No valid sockets to select.")
-        return [], [], []
-
-    try:
-        # Special handling for Windows (if needed)
-        if platform.system() == "Windows":
-            # On Windows, we might want to handle certain edge cases
-            # For example, we could limit the number of sockets being monitored
-            max_windows_sockets = 64  # Example limit; adjust as necessary
-            if len(read_sockets) > max_windows_sockets:
-                # print(f"Limiting to {max_windows_sockets} sockets due to Windows limitations.")
-                read_sockets = read_sockets[:max_windows_sockets]
-
-        # Call select with the validated socket lists
-        return select.select(read_sockets, write_sockets, exception_sockets, timeout)
-    except Exception as e:
-        print(f"Error during select: {e}")
-        return [], [], []
 
 
 class PeersManager(Thread):
@@ -153,6 +106,10 @@ class PeersManager(Thread):
     def run(self):
         while self.is_active:
             read = [peer.socket for peer in self.peers]
+
+            if read == None:
+                continue
+
             read_list, _, _ = select.select(read, [], [], 2)
             # print(f"read_list -> {read_list}")
 
@@ -174,7 +131,7 @@ class PeersManager(Thread):
                     continue
 
                 peer.read_buffer += payload
-                
+
                 print(f"payload -> {payload}")
 
                 for message in peer.get_messages():

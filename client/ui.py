@@ -207,10 +207,6 @@ class TorrentClientApp(QMainWindow):
         self.peers_managers[0].add_peers(peers.values())
 
         while not self.pieces_managers[0].all_pieces_completed():
-            if not self.peers_managers[0].has_unchoked_peers():
-                time.sleep(1)
-                continue
-
             for piece in self.pieces_managers[0].pieces:
                 index = piece.piece_index
 

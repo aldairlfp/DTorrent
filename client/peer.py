@@ -72,44 +72,6 @@ class Peer(object):
     def has_piece(self, index):
         return self.bit_field[index]
 
-    def am_choking(self):
-        return self.state["am_choking"]
-
-    def am_unchoking(self):
-        return not self.am_choking()
-
-    def is_choking(self):
-        return self.state["peer_choking"]
-
-    def is_unchoked(self):
-        return not self.is_choking()
-
-    def is_interested(self):
-        return self.state["peer_interested"]
-
-    def am_interested(self):
-        return self.state["am_interested"]
-
-    def handle_choke(self):
-        logging.debug("handle_choke - %s" % self.ip)
-        self.state["peer_choking"] = True
-
-    def handle_unchoke(self):
-        logging.debug("handle_unchoke - %s" % self.ip)
-        self.state["peer_choking"] = False
-
-    def handle_interested(self):
-        logging.debug("handle_interested - %s" % self.ip)
-        self.state["peer_interested"] = True
-
-        if self.am_choking():
-            unchoke = message.UnChoke().to_bytes()
-            self.send_to_peer(unchoke)
-
-    def handle_not_interested(self):
-        logging.debug("handle_not_interested - %s" % self.ip)
-        self.state["peer_interested"] = False
-
     def handle_have(self, have):
         """
         :type have: message.Have
