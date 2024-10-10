@@ -2,11 +2,6 @@ import ipaddress
 import struct
 import json
 from client import peer
-from client.message import (
-    UdpTrackerConnection,
-    UdpTrackerAnnounce,
-    UdpTrackerAnnounceOutput,
-)
 from client.peers_manager import PeersManager
 from client.torrent import Torrent
 

@@ -70,7 +70,7 @@ class Peer(object):
         return (now - self.last_call) > 0.2
 
     def has_piece(self, index):
-        return self.bit_field[index]
+        return self.bit_field[index] == 1
 
     def handle_have(self, have):
         """

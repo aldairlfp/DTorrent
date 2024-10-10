@@ -63,17 +63,10 @@ class TorrentClientApp(QMainWindow):
         self.paths = {}
         self.peers_managers: list[PeersManager] = []
         self.trackers: list[Tracker] = []
+        self.percentage_completed = -1
+        self.last_log_line = ""
 
         self.server_address = socket.gethostbyname(socket.gethostname())
-
-    #     threading.Thread(target=self.listen_all, daemon=True).start()
-
-    # def listen_all(self):
-    #     while True:
-    #         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-    #             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    #             s.bind((socket.gethostbyname(socket.gethostname()), 6881))
-    #             s.listen(10)
 
     def _exit_threads(self):
         self.peers_manager.is_active = False
@@ -194,16 +187,6 @@ class TorrentClientApp(QMainWindow):
 
     def download_loop(self):
         peers = self.trackers[0].get_peers_from_trackers()
-        # torrent = self.torrents[0]
-        # peers_dict = self.get_peers(
-        #     torrent.announce_list[0][0],
-        #     torrent.info_hash,
-        #     torrent.peer_id,
-        #     torrent.selected_total_length,
-        # )
-        # peers = []
-        # for v in peers_dict['peers']:
-        #     peers.append(Peer(torrent.number_of_pieces, v[1], v[2]))
         self.peers_managers[0].add_peers(peers.values())
 
         while not self.pieces_managers[0].all_pieces_completed():
@@ -250,19 +233,20 @@ class TorrentClientApp(QMainWindow):
         if new_progression == self.percentage_completed:
             return
 
-        number_of_peers = self.peers_managers[0].unchoked_peers_count()
+        # number_of_peers = self.peers_managers[0].unchoked_peers_count()
         percentage_completed = float(
-            (float(new_progression) / self.torrent.total_length) * 100
+            (float(new_progression) / self.torrents[0].selected_total_length) * 100
         )
 
         current_log_line = "Connected peers: {} - {}% completed | {}/{} pieces".format(
-            number_of_peers,
+            # number_of_peers,
+            len(self.peers_managers[0].peers),
             round(percentage_completed, 2),
             self.pieces_managers[0].complete_pieces,
             self.pieces_managers[0].number_of_pieces,
         )
         if current_log_line != self.last_log_line:
-            print(current_log_line)
+            print(percentage_completed)
             item = self.tableProgress.item(self.tableProgress.rowCount(), 3)
             if item:
                 current_progress = item.data(Qt.UserRole + 1000)

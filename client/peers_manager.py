@@ -58,12 +58,7 @@ class PeersManager(Thread):
         ready_peers = []
 
         for peer in self.peers:
-            if (
-                peer.is_eligible()
-                and peer.is_unchoked()
-                and peer.am_interested()
-                and peer.has_piece(index)
-            ):
+            if peer.has_piece(index):
                 ready_peers.append(peer)
 
         return random.choice(ready_peers) if ready_peers else None
@@ -107,7 +102,7 @@ class PeersManager(Thread):
         while self.is_active:
             read = [peer.socket for peer in self.peers]
 
-            if read == None:
+            if read == []:
                 continue
 
             read_list, _, _ = select.select(read, [], [], 2)
@@ -182,18 +177,6 @@ class PeersManager(Thread):
             new_message, message.KeepAlive
         ):
             logging.error("Handshake or KeepALive should have already been handled")
-
-        elif isinstance(new_message, message.Choke):
-            peer.handle_choke()
-
-        elif isinstance(new_message, message.UnChoke):
-            peer.handle_unchoke()
-
-        elif isinstance(new_message, message.Interested):
-            peer.handle_interested()
-
-        elif isinstance(new_message, message.NotInterested):
-            peer.handle_not_interested()
 
         elif isinstance(new_message, message.Have):
             peer.handle_have(new_message)

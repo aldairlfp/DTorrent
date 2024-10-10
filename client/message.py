@@ -133,6 +133,37 @@ class KeepAlive(Message):
         return KeepAlive()
 
 
+class Have(Message):
+    """
+    HAVE = <length><message_id><piece_index>
+        - payload length = 5 (4 bytes)
+        - message_id = 4 (1 byte)
+        - piece_index = zero based index of the piece (4 bytes)
+    """
+
+    message_id = 4
+
+    payload_length = 5
+    total_length = 4 + payload_length
+
+    def __init__(self, piece_index):
+        super(Have, self).__init__()
+        self.piece_index = piece_index
+
+    def to_bytes(self):
+        pack(">IBI", self.payload_length, self.message_id, self.piece_index)
+
+    @classmethod
+    def from_bytes(cls, payload):
+        payload_length, message_id, piece_index = unpack(
+            ">IBI", payload[: cls.total_length]
+        )
+        if message_id != cls.message_id:
+            raise WrongMessageException("Not a Have message")
+
+        return Have(piece_index)
+
+
 class BitField(Message):
     """
     BITFIELD = <length><message id><bitfield>
