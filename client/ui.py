@@ -15,6 +15,8 @@ from PyQt5.QtWidgets import (
     QApplication,
     QMainWindow,
     QFileDialog,
+    QInputDialog,
+    QMessageBox,
     QTreeWidgetItem,
     QTableWidgetItem,
     QStyledItemDelegate,
@@ -28,6 +30,7 @@ from client.resources_rc import *
 from bcoding import bdecode, bencode
 
 from client.client import bittorrent_client
+from create_torrent2 import create_torrent
 
 MAX_PEERS_TRY_CONNECT = 30
 MAX_PEERS_CONNECTED = 8
@@ -65,20 +68,31 @@ class TorrentClientApp(QMainWindow):
         options = QFileDialog.Options()
         file_path, _ = QFileDialog.getOpenFileName(
             self,
-            "Select Torrent File",
+            "Select Any File",
             "",
-            "Torrent Files (*.torrent)",
+            "All Files (*);;Torrent Files (*.torrent);;RAR Files (*.rar)",
             options=options,
         )
-        
-        # if file_path:  # Check if a folder was selected
-            # self.create_torrent(
-            #     self.server_address,
-            #     folder_path,
-            #     [f"http://{self.server_address}:8000"],
-            #     folder_name,
-            # )
-            
+
+        if file_path:
+            # Si se seleccionó un archivo, abrir el diálogo para ingresar la lista de anuncios
+            self.get_announce_list(file_path)
+
+    def get_announce_list(self, file_name):
+        # Diálogo para ingresar la lista de anuncios
+        announce_list, ok = QInputDialog.getText(
+            self, "Lista de Anuncios", "Ingrese la URL del tracker:"
+        )
+
+        if ok and announce_list:
+            # Aquí puedes manejar la creación del torrent usando el archivo y la lista de anuncios
+            QMessageBox.information(
+                self,
+                "Información",
+                f"Archivo seleccionado: {file_name}\nLista de Anuncios: {announce_list}",
+            )
+            create_torrent(file_name,[announce_list])
+
     def open_file_dialog_to_add_torrent(self):
         options = QFileDialog.Options()
         file_path, _ = QFileDialog.getOpenFileName(
@@ -88,8 +102,10 @@ class TorrentClientApp(QMainWindow):
             "Torrent Files (*.torrent)",
             options=options,
         )
-        self.client: bittorrent_client = bittorrent_client(file_path)
-        
+        self.client: bittorrent_client = bittorrent_client()
+        self.client.set_torrent(file_path)
+
+
 def main():
     app = QApplication(sys.argv)
     window = TorrentClientApp()
