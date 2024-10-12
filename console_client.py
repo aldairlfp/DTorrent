@@ -1,115 +1,94 @@
+import socket
 import sys
-from client.block import State
-import time
-import client.peers_manager as peers_manager
-import client.pieces_manager as pieces_manager
-import client.torrent as torrent
-import client.tracker as tracker
-import logging
-import os
-import client.message as message
+import argparse
+
+# bittorrent client module for P2P sharing
+from client import utils
+from client.client import *
+
+"""
+    Client bittorrent protocol implementation in python
+"""
 
 
-class Run(object):
-    percentage_completed = -1
-    last_log_line = ""
+def main(user_arguments):
 
-    def __init__(self):
-        # try:
-        #     torrent_file = sys.argv[1]
-        # except IndexError:
-        #     logging.error("No torrent file provided!")
-        #     sys.exit(0)
-        torrent_file = "torrents/torrents/gta-san-andreas-pc_202204_archive.torrent"
-        # torrent_file = "torrents/.torrent"
-        self.torrent = torrent.Torrent().load_from_path(torrent_file)
-        self.tracker = tracker.Tracker(self.torrent)
+    # create torrent client object
+    client = bittorrent_client(user_arguments)
 
-        self.pieces_manager = pieces_manager.PiecesManager(self.torrent)
-        self.peers_manager = peers_manager.PeersManager(
-            self.torrent, self.pieces_manager
-        )
+    # contact the trackers
+    client.contact_trackers()
 
-        self.peers_manager.start()
-        logging.info("PeersManager Started")
-        logging.info("PiecesManager Started")
+    # initialize the swarm of peers
+    client.initialize_swarm()
 
-    def start(self):
-        peers_dict = self.tracker.get_peers_from_trackers()
-        self.peers_manager.add_peers(peers_dict.values())
-
-        while not self.pieces_manager.all_pieces_completed():
-            if not self.peers_manager.has_unchoked_peers():
-                time.sleep(1)
-                logging.info("No unchocked peers")
-                continue
-
-            for piece in self.pieces_manager.pieces:
-                index = piece.piece_index
-
-                if self.pieces_manager.pieces[index].is_full:
-                    continue
-
-                peer = self.peers_manager.get_random_peer_having_piece(index)
-                if not peer:
-                    continue
-
-                self.pieces_manager.pieces[index].update_block_status()
-
-                data = self.pieces_manager.pieces[index].get_empty_block()
-                if not data:
-                    continue
-
-                piece_index, block_offset, block_length = data
-                piece_data = message.Request(
-                    piece_index, block_offset, block_length
-                ).to_bytes()
-                peer.send_to_peer(piece_data)
-
-            self.display_progression()
-
-            time.sleep(0.1)
-
-        logging.info("File(s) downloaded successfully.")
-        self.display_progression()
-
-        self._exit_threads()
-
-    def display_progression(self):
-        new_progression = 0
-
-        for i in range(self.pieces_manager.number_of_pieces):
-            for j in range(self.pieces_manager.pieces[i].number_of_blocks):
-                if self.pieces_manager.pieces[i].blocks[j].state == State.FULL:
-                    new_progression += len(self.pieces_manager.pieces[i].blocks[j].data)
-
-        if new_progression == self.percentage_completed:
-            return
-
-        number_of_peers = self.peers_manager.unchoked_peers_count()
-        percentage_completed = float(
-            (float(new_progression) / self.torrent.total_length) * 100
-        )
-
-        current_log_line = "Connected peers: {} - {}% completed | {}/{} pieces".format(
-            number_of_peers,
-            round(percentage_completed, 2),
-            self.pieces_manager.complete_pieces,
-            self.pieces_manager.number_of_pieces,
-        )
-        if current_log_line != self.last_log_line:
-            print(current_log_line)
-
-        self.last_log_line = current_log_line
-        self.percentage_completed = new_progression
-
-    def _exit_threads(self):
-        self.peers_manager.is_active = False
-        os._exit(0)
+    # download the file from the swarm
+    client.event_loop()
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
+    bittorrent_description = "KP-Bittorrent Client implementation in python3"
+    bittorrent_epilog = (
+        "Report bugs to : <https://github.com/kishanpatel22/bittorrent/issues>\n"
+    )
+    bittorrent_epilog += (
+        "Contribute open source : <https://github.com/kishanpatel22/bittorrent>"
+    )
 
-    run = Run()
-    run.start()
+    # argument parser for bittorrent
+    parser = argparse.ArgumentParser(
+        description=bittorrent_description, epilog=bittorrent_epilog
+    )
+    parser.add_argument(TORRENT_FILE_PATH, help="unix file path of torrent file")
+    parser.add_argument(
+        "-d", "--" + DOWNLOAD_DIR_PATH, help="unix directory path of downloading file"
+    )
+    parser.add_argument(
+        "-s", "--" + SEEDING_DIR_PATH, help="unix directory path for the seeding file"
+    )
+    parser.add_argument(
+        "-m",
+        "--" + MAX_PEERS,
+        help="maximum peers participating in upload/download of file",
+    )
+    parser.add_argument(
+        "-l", "--" + RATE_LIMIT, help="upload / download limits in Kbps"
+    )
+    parser.add_argument(
+        "-a",
+        "--" + AWS,
+        action="store_true",
+        default=False,
+        help="test download from AWS Cloud",
+    )
+
+    # get the user input option after parsing the command line argument
+    options = vars(parser.parse_args(sys.argv[1:]))
+
+    # parser.add_argument("-c", "--" + CREATE_TORRENT, default="create a torrent")
+    # if options[CREATE_TORRENT]:
+    # utils.create_torrent(
+    #     socket.gethostbyname(socket.gethostname()),
+    #     ".\\torrents\\torrents.rar",
+    #     [f"http://{socket.gethostbyname(socket.gethostname())}:8000"],
+    #     "torrents",
+    # )
+
+    if options[DOWNLOAD_DIR_PATH] is None and options[SEEDING_DIR_PATH] is None:
+        print(
+            "KP-Bittorrent works with either download or upload arguments, try using --help"
+        )
+        sys.exit()
+
+    if options[MAX_PEERS] and int(options[MAX_PEERS]) > 50:
+        print("KP-Bittorrent client doesn't support more than 50 peer connection !")
+        sys.exit()
+
+    if options[RATE_LIMIT] and int(options[RATE_LIMIT]) <= 0:
+        print(
+            "KP-Bittorrent client upload / download rate must always greater than 0 Kbps"
+        )
+        sys.exit()
+
+    # call the main function
+    main(options)
