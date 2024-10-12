@@ -40,21 +40,22 @@ class TrackerServerHandlerRequests(BaseHTTPRequestHandler):
         data_resp["interval"] = 10
         data_resp["peers"] = []
 
+        # if (
+        #     downloaded == "0"
+        #     and left != "0"
+        #     and self.server.tracker_server.find(info_hash)
+        # ):
+        #     data_resp["peers"] = self.server.tracker_server.get_peers(info_hash)
         if (
-            downloaded == "0"
-            and left != "0"
-            and self.server.tracker_server.find(info_hash)
-        ):
-            data_resp["peers"] = self.server.tracker_server.get_peers(info_hash)
-        elif (
-            downloaded == "0"
-            and left == "0"
+            # downloaded == "0"
+            left == "0"
             and not self.server.tracker_server.find(info_hash)
         ):
             self.server.tracker_server.add_peer(
                 peer_id, self.client_address[0], port, info_hash
             )
 
+        data_resp["peers"] = self.server.tracker_server.get_peers(info_hash)
         self.send_response(200)
         self.send_header("Content-type", "application/json")
         self.end_headers()

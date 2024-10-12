@@ -24,7 +24,6 @@ SEEDING_DIR_PATH = "seeding_directory_path"
 MAX_PEERS = "max_peers"
 RATE_LIMIT = "rate_limit"
 AWS = "AWS"
-CREATE_TORRENT = "create_torrent"
 
 """
     Torrent client would help interacting with the tracker server and

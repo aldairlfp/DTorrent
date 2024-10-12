@@ -444,7 +444,6 @@ class torrent_tracker:
         self.trackers_logger = torrent_logger("trackers", TRACKER_LOG_FILE, DEBUG)
 
         # get all the trackers list of the torrent data
-
         self.trackers_list = []
         self.trackers_connection_status = []
 

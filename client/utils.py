@@ -8,9 +8,6 @@ import urllib
 
 import requests
 
-from client.block import BLOCK_SIZE
-from client.torrent_new2 import Torrent
-
 
 def transform_length(file_size):
     if file_size >= 1024 * 1024 * 1024:

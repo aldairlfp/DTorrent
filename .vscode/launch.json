@@ -10,7 +10,9 @@
       "request": "launch",
       // "program": "main.py",
       "program": "${file}",
-      "console": "integratedTerminal"
+      "console": "integratedTerminal",
+      // "args" :[".\\torrents.rar.torrent","-s", ".\\torrents\\torrents.rar"]
+      "args" :[".\\bittorrent.pdf.torrent","-s", ".\\torrents\\torrents.rar"]
     }
   ]
 }
