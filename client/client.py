@@ -61,8 +61,6 @@ class bittorrent_client:
             "AWS": False,
         }
 
-        self.seed_torrents_paths = []
-        self.dowload_torrents_paths = []
         self.seeding_torrents = []
         self.downloading_torrents = []
 
@@ -146,9 +144,11 @@ class bittorrent_client:
 
     def set_seeding(self, path):
         self.seeding.append(path)
+        self._create_torrent(len(self.seeding) - 1, 'seed')
 
     def set_dowloading(self, path):
         self.downloading.append(path)
+        self._create_torrent(len(self.downloading) - 1)
 
     def set_aws(self, val):
         self.client_request["AWS"] = val
@@ -161,23 +161,23 @@ class bittorrent_client:
 
     def set_torrent(self, path, mode = 'download'):
         if mode == 'download':
-            self.dowload_torrents_paths.append(path)
-            self._create_torrent(len(self.dowload_torrents_paths) - 1)
+            self.downloading.append(path)
+            self._create_torrent(len(self.downloading) - 1)
         else:
-            self.seed_torrents_paths.append(path)
-            self._create_torrent(len(self.seed_torrents_paths) - 1)
+            self.seeding.append(path)
+            self._create_torrent(len(self.seeding) - 1)
 
-    def change_torrent(self, path, index, mode = 'dowload'):
+    def modify_torrent(self, path, index, mode = 'dowload'):
         if mode == 'download':
-            self.dowload_torrents_paths[index] = path
+            self.downloading[index] = path
             self._create_torrent(index)
         else:
-            self.seed_torrents_paths[index] = path
+            self.seeding[index] = path
             self._create_torrent(index, mode)
 
     def _create_torrent(self, index, mode = 'download'):
         if mode == 'download':
-            info = torrent_file_reader(self.dowload_torrents_paths[index])
+            info = torrent_file_reader(self.downloading[index])
             
             if index < len(self.downloading_torrents):
                 self.downloading_torrents[index] = torrent(info.get_data(), self.client_request)
@@ -186,7 +186,7 @@ class bittorrent_client:
             
             self.bittorrent_logger.log(str(self.downloading_torrents[index]))
         else:
-            info = torrent_file_reader(self.seed_torrents_paths[index])
+            info = torrent_file_reader(self.seeding[index])
 
             if index < len(self.seeding_torrents):
                 self.seeding_torrents[index] = torrent(info.get_data(), self.client_request)
