@@ -1,156 +1,96 @@
-import math
-
 import hashlib
-import time
-import logging
-import os
+import random as rd
 
-from bcoding import bencode, bdecode
+# module problems torrent statistics 
+from client.torrent_statistics import *
 
-from client.block import BLOCK_SIZE
+# module for printing data in Tabular format
+from beautifultable import BeautifulTable
 
+"""
+    The actual infomation about the file that is being shared among the peers
+    along with information about the client overall downloaded/uploaded data
+    chunks and additional information required 
+"""
 
-class Torrent(object):
-    def __init__(self):
-        self.torrent_file = {}
-        self.total_length: int = 0
-        self.piece_length: int = 0
-        self.pieces: int = 0
-        self.info_hash: str = ""
-        self.peer_id: str = ""
-        self.announce_list = ""
-        self.file_names = []
-        self.number_of_pieces: int = 0
-        self.name: str = ""
-        self.selected_files = []
-        self.selected_total_length = 0
+class torrent():
 
+    def __init__(self, torrent_metadata, client_request):
+        # store the orginal metadata extracted from the file
+        self.torrent_metadata   = torrent_metadata
+        self.client_request     = client_request
+
+        # torrent peer port reserved for bittorrent, this will be used 
+        # for listening to the peer request for uploading (seeding)
+        self.client_port = 6881
+        self.client_IP = ''
+            
+        # downloaded and uploaded values 
+        self.statistics = torrent_statistics(self.torrent_metadata)
+            
+        # pieces divided into chunks of fixed block size
+        self.block_length   = 16 * (2 ** 10) 
+        
+        # piece length of torrent file
+        self.piece_length = torrent_metadata.piece_length
+
+        # if the client wants to upload the file 
+        if self.client_request['seeding'] != None:
+            self.statistics.num_pieces_downloaded = self.torrent_metadata.file_size
+
+        # the count of the number pieces that the files is made of
+        self.pieces_count = int(len(self.torrent_metadata.pieces) / 20)
+
+        # Azureus-style encoding for peer id
+        self.peer_id = ('-PC0001-' + ''.join([str(rd.randint(0, 9)) for i in range(12)])).encode()
+    
+    
+    # gets the length of the piece given the piece index
+    def get_piece_length(self, piece_index):
+        # check if piece if the last piece of file
+        if piece_index == self.pieces_count - 1:
+            return self.torrent_metadata.file_size - self.torrent_metadata.piece_length * (piece_index)
+        else:
+            return self.torrent_metadata.piece_length
+  
+    # get validates piece length of given piece
+    def validate_piece_length(self, piece_index, block_offset, block_length):
+        if block_length > self.block_length:
+            return False
+        elif block_length + block_offset > self.get_piece_length(piece_index):
+            return False
+        return True
+        
+    # logs the torrent information of torrent
     def __str__(self):
-        rsult = f"peer_id: {self.peer_id}\ninfo_hash: {self.info_hash}\n"
-
-        return rsult
-
-    def load_from_path(self, path):
-        with open(path, "rb") as file:
-            contents = bdecode(file.read())
-
-        self.torrent_file = contents
-        self.comment = contents["comment"] if "comment" in contents else ""
-        self.piece_length = self.torrent_file["info"]["piece length"]
-        self.pieces = self.torrent_file["info"]["files"]
-        raw_info_hash = bencode(self.torrent_file["info"])
-        self.info_hash = hashlib.sha1(raw_info_hash).digest()
-        self.peer_id = self.generate_peer_id()
-        self.announce_list = self.get_trakers()
-        self.name = self.torrent_file["info"]["name"]
-        self.init_files()
-        self.number_of_pieces = math.ceil(self.total_length / self.piece_length)
-        self.selected_files = list(range(len(self.file_names)))
-        self.selected_total_length = self.total_length
-        logging.debug(self.announce_list)
-        logging.debug(self.file_names)
-
-        assert self.total_length > 0
-        assert len(self.file_names) > 0
-
-        return self
-
-    def init_files(self):
-        root = self.torrent_file["info"]["name"]
-
-        if "files" in self.torrent_file["info"]:
-            for file in self.torrent_file["info"]["files"]:
-                path_file = file["path"]
-
-                self.file_names.append({"path": path_file, "length": file["length"]})
-                self.total_length += file["length"]
-
+        column_header =  'CLIENT TORRENT DATA\n (client state = '
+        if self.client_request['downloading'] != None:
+            column_header += 'downloading)\n'
+        if self.client_request['seeding'] != None:
+            column_header += 'seeding)\n'
+        
+        torrent_file_table = BeautifulTable()
+        torrent_file_table.columns.header = [column_header, "DATA VALUE"]
+        
+        # file name
+        torrent_file_table.rows.append(['File name', str(self.torrent_metadata.file_name)])
+        # file size
+        torrent_file_table.rows.append(['File size', str(round(self.torrent_metadata.file_size / (2 ** 20), 2)) + ' MB'])
+        # piece length 
+        torrent_file_table.rows.append(['Piece length', str(self.torrent_metadata.piece_length)])
+        # info hash
+        torrent_file_table.rows.append(['Info hash', '20 Bytes file info hash value'])
+        # files (multiple file torrents)
+        if self.torrent_metadata.files:
+            torrent_file_table.rows.append(['Files', str(len(self.torrent_metadata.files))])
         else:
-            self.file_names.append(
-                {"path": root, "length": self.torrent_file["info"]["length"]}
-            )
-            self.total_length = self.torrent_file["info"]["length"]
+            torrent_file_table.rows.append(['Files', str(self.torrent_metadata.files)])
+        # number of pieces in file 
+        torrent_file_table.rows.append(['Number of Pieces', str(self.pieces_count)])
+        # client port
+        torrent_file_table.rows.append(['Client port', str(self.client_port)])
+        torrent_file_table.rows.append(['Client peer ID', str(self.peer_id)])
+        
+        return str(torrent_file_table)
 
-    def select_files(self, selected_files):
-        self.selected_files = []
-        k = 0
-        for i in range(len(self.file_names)):
-            # fn = "/".join(self.file_names[k]["path"])
-            fn = self.file_names[k]["path"]
-            if selected_files[k][1:] == fn:
-                self.selected_files.append(k)
-                k += 1
-        self.selected_total_length = 0
-        for file in self.selected_files:
-            self.selected_total_length += self.file_names[file]["length"]
-        self.number_of_pieces = math.ceil(
-            self.selected_total_length / self.piece_length
-        )
 
-    def create_torrent(self, folder_path, announce_list, name):
-        self.torrent_file = {
-            "announce": announce_list,
-            "creation date": int(time.time()),
-            "info": {
-                "length": os.path.getsize(folder_path),
-                "name": name,
-                "piece length": BLOCK_SIZE,
-                "files": [],
-            },
-        }
-
-        for root, dirs, files in os.walk(folder_path):
-            for file in files:
-                relative_path = os.path.relpath(os.path.join(root, file), folder_path)
-                file_info = {
-                    "length": os.path.getsize(os.path.join(root, file)),
-                    "path": (
-                        relative_path.split("\\")[1:]
-                        if "\\" in relative_path
-                        else [file]
-                    ),
-                }
-                self.torrent_file["info"]["files"] += [file_info]
-
-        self.torrent_file["info"]["pieces"] = self._generate_pieces_key_for_folder(
-            folder_path, self.piece_length
-        )
-        for root, _, files in os.walk(folder_path):
-            for file in files:
-                with open(os.path.join(root, file), "rb") as f:
-                    self.torrent_file["info"]["pieces"] += hashlib.sha1(
-                        f.read()
-                    ).digest()
-
-        with open(f"torrents/{name}.torrent", "wb") as file:
-            file.write(bencode(self.torrent_file))
-
-        return self.torrent_file
-
-    def _generate_pieces_key_for_folder(self, folder_path, piece_size):
-        def read_in_pieces(file_path, piece_size):
-            with open(file_path, "rb") as f:
-                while True:
-                    piece = f.read(piece_size)
-                    if not piece:
-                        break
-                    yield piece
-
-        pieces = []
-        for root, dirs, files in os.walk(folder_path):
-            for file in files:
-                file_path = os.path.join(root, file)
-                for piece in read_in_pieces(file_path, piece_size):
-                    sha1 = hashlib.sha1()
-                    sha1.update(piece)
-                    pieces.append(sha1.digest())
-        return b"".join(pieces)
-
-    def get_trakers(self):
-        if "announce-list" in self.torrent_file:
-            return self.torrent_file["announce-list"]
-        else:
-            return [self.torrent_file["announce"]]
-
-    def generate_peer_id(self):
-        return "-TR2940-" + str(int(time.time())) + "TR"
