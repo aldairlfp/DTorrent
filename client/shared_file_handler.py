@@ -3,7 +3,9 @@ from threading import *
 
 """
     General file input and output class, provides read and write data options
-    However note that default mode of operations on file in read/write bothclass
+    However note that default mode of operations on file in read/write both
+"""
+
 
 class file_io:
     # initializes the file descripter
@@ -17,8 +19,7 @@ class file_io:
 
     # reads from file given size of data to be read
     def read(self, buffer_size):
-        byte_stream = os.r.readelf.file_descriptor, buffer_size)
-        print(len(bybytes
+        byte_stream = os.read(self.file_descriptor, buffer_size)
         return byte_stream
 
     # writes file with all values to 0(null) given the size of file
@@ -122,18 +123,6 @@ class torrent_shared_file_handler:
 
         # read the block of data into the file
         data_block = self.download_file.read(block_size)
-
-        self.shared_file_lock.release()
-
-        # return the read block of data
-        return data_block
-block_size)
-
-        self.shared_file_lock.release()
-
-        # return the read block of data
-        return data_block
-block_size)
 
         self.shared_file_lock.release()
 

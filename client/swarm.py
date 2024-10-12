@@ -37,7 +37,7 @@ class swarm:
         if self.torrent.client_request["AWS"]:
             self.peers_list.append(peer("34.238.166.126", 6881, torrent))
 
-        for peer_IP, peer_port in peers_data["peers"]:
+        for peer_id, peer_IP, peer_port in peers_data["peers"]:
             self.peers_list.append(peer(peer_IP, peer_port, torrent))
 
         # bitfields from all peers
