@@ -199,7 +199,7 @@ class bittorrent_client:
         if mode == 'download':
             self.client_request["downloading"] = self.downloading[index]
             self.torrent = self.downloading_torrents[index]
-        elif mode == 'upload':
+        elif mode == 'seed':
             self.client_request["seeding"] = self.seeding[index]
             self.torrent = self.seeding_torrents[index]
 
@@ -258,3 +258,23 @@ class bittorrent_client:
             self.download()
         if self.client_request["seeding"] is not None:
             self.seed()
+
+    def init_download(self, index):
+        self.change_client_request(index)
+        self.client_request["seeding"] = None
+
+        self.contact_trackers()
+
+        self.initialize_swarm()
+
+        self.download()
+
+    def init_upload(self, index):
+        self.change_client_request(index, 'seed')
+        self.client_request["downloading"] = None
+
+        self.contact_trackers()
+
+        self.initialize_swarm()
+
+        self.seed()

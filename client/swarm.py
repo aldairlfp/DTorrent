@@ -201,7 +201,8 @@ class swarm():
             self.torrent.statistics.update_download_rate(piece, self.torrent.piece_length)
             self.torrent_stats_logger.log(self.torrent.statistics.get_download_statistics())
             # release the lock after downloading
-            self.swarm_lock.release() 
+            self.swarm_lock.release()
+            
 
     """
         piece selection stratergy is completely based on the bittorrent client
