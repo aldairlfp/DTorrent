@@ -67,6 +67,9 @@ class bittorrent_client:
         self.seeding = []
         self.downloading = []
 
+        self.download_swarms = []
+        self.seed_swarms = []
+
         if user_arguments:
             torrent_file_path = user_arguments[TORRENT_FILE_PATH]
             
@@ -265,9 +268,9 @@ class bittorrent_client:
 
         self.contact_trackers()
 
-        self.initialize_swarm()
+        self._init_swarm()
 
-        self.download()
+        self._download(index)
 
     def init_upload(self, index):
         self.change_client_request(index, 'seed')
@@ -275,6 +278,51 @@ class bittorrent_client:
 
         self.contact_trackers()
 
-        self.initialize_swarm()
+        self._init_swarm(mode='seed')
 
-        self.seed()
+        self._seed(index)
+
+    def _seed(self, index):
+        self.bittorrent_logger.log("Client started seeding ... ")
+
+        upload_file_path = self.client_request["seeding"]
+
+        file_handler = torrent_shared_file_handler(upload_file_path, self.torrent)
+
+        self.seed_swarms[index].add_shared_file_handler(file_handler)
+
+        self.seed_swarms[index].seed_file()
+
+    def _download(self, index):
+        download_file_path = (
+            self.client_request["downloading"] + self.torrent.torrent_metadata.file_name
+        )
+
+        self.bittorrent_logger.log(
+            "Initializing the file handler for peers in swarm ... "
+        )
+
+        file_handler = torrent_shared_file_handler(download_file_path, self.torrent)
+
+        file_handler.initialize_for_download()
+
+        self.download_swarms[index].add_shared_file_handler(file_handler)
+
+        self.bittorrent_logger.log(
+            "Client started downloading (check torrent statistics) ... "
+        )
+
+        self.download_swarms[index].download_file()
+
+    def _init_swarm(self, mode = 'download'):
+        self.bittorrent_logger.log("Initializing the swarm of peers ...")
+        peers_data = self.active_tracker.get_peers_data()
+        
+        if mode == 'download':
+            self.download_swarms.append(swarm(peers_data, self.torrent))
+        else:
+            peers_data["peers"] = []
+            self.seed_swarms.append(swarm(peers_data, self.torrent))
+
+
+            

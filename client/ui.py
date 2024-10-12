@@ -58,6 +58,7 @@ class TorrentClientApp(QMainWindow):
         self.last_log_line = ""
 
         self.server_address = socket.gethostbyname(socket.gethostname())
+        self.client: bittorrent_client = bittorrent_client()
 
     def _exit_threads(self):
         self.peers_manager.is_active = False
@@ -92,6 +93,10 @@ class TorrentClientApp(QMainWindow):
                 f"Archivo seleccionado: {file_name}\nLista de Anuncios: {announce_list}",
             )
             create_torrent(file_name,[announce_list])
+            torrent_path = os.path.abspath(file_name) + '.torrent'
+            self.client.set_torrent(torrent_path, 'seed')
+            self.client.set_seeding(file_name)
+            self.client.init_upload(len(self.client.seeding) - 1)
 
     def open_file_dialog_to_add_torrent(self):
         options = QFileDialog.Options()
@@ -102,8 +107,9 @@ class TorrentClientApp(QMainWindow):
             "Torrent Files (*.torrent)",
             options=options,
         )
-        self.client: bittorrent_client = bittorrent_client()
         self.client.set_torrent(file_path)
+        self.client.set_dowloading('.\\downloads')
+        self.client.init_download(len(self.client.downloading) - 1)
 
 
 def main():
