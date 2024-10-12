@@ -9,6 +9,7 @@ import urllib
 import requests
 
 
+
 def transform_length(file_size):
     if file_size >= 1024 * 1024 * 1024:
         file_size = f"{file_size/(1024*1024*1024):.2f} GB"
@@ -73,8 +74,8 @@ def generate_piece_hashes(folder_path, piece_length):
     return pieces
 
 
-def create_torrent(server_addr, path, annouce_list, name):
-    torrent_file = Torrent().create_torrent(path, annouce_list, name)
+# def create_torrent(server_addr, path, annouce_list, name):
+#     torrent_file = Torrent().create_torrent(path, annouce_list, name)
 
     # raw_info_hash = bencode(torrent_file["info"])
     # info_hash = hashlib.sha1(raw_info_hash).digest()
