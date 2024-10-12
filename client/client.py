@@ -61,17 +61,19 @@ class bittorrent_client:
             "AWS": False,
         }
 
-        self.torrents_paths = []
-        self.torrents = []
+        self.seed_torrents_paths = []
+        self.dowload_torrents_paths = []
+        self.seeding_torrents = []
+        self.downloading_torrents = []
 
         self.seeding = []
         self.downloading = []
 
-        # user wants to download the torrent file
         if user_arguments:
             torrent_file_path = user_arguments[TORRENT_FILE_PATH]
             
             self.torrent_info = torrent_file_reader(torrent_file_path)
+            # user wants to download the torrent file
             if user_arguments[DOWNLOAD_DIR_PATH]:
                 self.client_request["downloading"] = user_arguments[DOWNLOAD_DIR_PATH]
                 if user_arguments[RATE_LIMIT]:
@@ -157,28 +159,49 @@ class bittorrent_client:
     def set_upload_rate(self, val):
         self.client_request["uploading rate"] = val
 
-    def set_torrent(self, path):
-        self.torrents_paths.append(path)
-        self._create_torrent(len(self.torrents_paths) - 1)
-
-    def change_torrent(self, path, index):
-        self.torrents_paths[index] = path
-        self._create_torrent(index)
-
-    def _create_torrent(self, index):
-        info = torrent_file_reader(self.torrents_paths[index])
-        if index < len(self.torrents):
-            self.torrents[index] = torrent(info.get_data(), self.client_request)
+    def set_torrent(self, path, mode = 'download'):
+        if mode == 'download':
+            self.dowload_torrents_paths.append(path)
+            self._create_torrent(len(self.dowload_torrents_paths) - 1)
         else:
-            self.torrents.append(torrent(info.get_data(), self.client_request))
+            self.seed_torrents_paths.append(path)
+            self._create_torrent(len(self.seed_torrents_paths) - 1)
 
-        self.bittorrent_logger.log(str(self.torrents[index]))
+    def change_torrent(self, path, index, mode = 'dowload'):
+        if mode == 'download':
+            self.dowload_torrents_paths[index] = path
+            self._create_torrent(index)
+        else:
+            self.seed_torrents_paths[index] = path
+            self._create_torrent(index, mode)
+
+    def _create_torrent(self, index, mode = 'download'):
+        if mode == 'download':
+            info = torrent_file_reader(self.dowload_torrents_paths[index])
+            
+            if index < len(self.downloading_torrents):
+                self.downloading_torrents[index] = torrent(info.get_data(), self.client_request)
+            else:
+                self.downloading_torrents.append(torrent(info.get_data(), self.client_request))
+            
+            self.bittorrent_logger.log(str(self.downloading_torrents[index]))
+        else:
+            info = torrent_file_reader(self.seed_torrents_paths[index])
+
+            if index < len(self.seeding_torrents):
+                self.seeding_torrents[index] = torrent(info.get_data(), self.client_request)
+            else:
+                self.seeding_torrents.append(torrent(info.get_data(), self.client_request))
+            
+            self.bittorrent_logger.log(str(self.seeding_torrents[index]))
 
     def change_client_request(self, index, mode = 'download'):
         if mode == 'download':
             self.client_request["downloading"] = self.downloading[index]
+            self.torrent = self.downloading_torrents[index]
         elif mode == 'upload':
             self.client_request["seeding"] = self.seeding[index]
+            self.torrent = self.seeding_torrents[index]
 
     def seed(self):
         self.bittorrent_logger.log("Client started seeding ... ")
