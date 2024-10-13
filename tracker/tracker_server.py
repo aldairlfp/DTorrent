@@ -73,6 +73,8 @@ class TrackerServer:
             leader_election.BroadcastPowElector(leader_election.PORT, difficulty=5)
         )
 
+        self.joining_list = []
+
         self.httpd = HTTPServer((self.host, self.port), TrackerServerHandlerRequests)
         self.httpd.tracker_server = self
 
@@ -84,6 +86,8 @@ class TrackerServer:
 
         # t2 = threading.Thread(target=self.get_requests)
         # t2.start()
+        t2 = threading.Thread(target=self.join_pool)
+        t2.start()
 
         t3 = threading.Thread(target=self.elector.loop)
         t3.start()
@@ -119,67 +123,29 @@ class TrackerServer:
                         continue
 
                     if msg[0] == "JOIN":
-                        if msg[1] != "None" and self.host != msg[1]:
+                        if (
+                            msg[1] != "None"
+                            and self.host != msg[1]
+                            # and not self.node.is_stabilizing
+                        ):
                             # print(
                             #     f"Am I the leader: {self.elector.ImTheLeader} and the sender is {sender[0]}"
                             # )
                             # print(self.host != sender[0])
-                            self.join(msg[1])
-
-                    time.sleep(5)
+                            if not msg[1] in self.joining_list:
+                                self.joining_list.append(msg[1])
+                            # self.join(msg[1])
 
                 # except Exception as e:
                 #     print(f"Error in run: {e}")
                 finally:
                     pass
 
-    def get_requests(self):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind((self.host, int(self.port)))
-            print(f"Bind in {self.host}:{self.port}")
-            s.listen(10)
-            print(f"Listening in {self.host}:{self.port}")
-            while True:
-                conn, addr = s.accept()
-
-                request_data = b""
-                while True:
-                    part = conn.recv(4096)
-                    request_data += part
-                    if len(part) < 4096:
-                        break
-
-                data_resp = None
-
-                request_data = request_data.decode().split("\r\n")
-
-                if request_data[0] == "GET / HTTP/1.1" and "?" in request_data[1]:
-                    params = request_data[1].split("?")[1].split("&")
-
-                    peer_id = params[1].split("=")[1]
-                    uploaded = params[2].split("=")[1]
-                    downloaded = params[3].split("=")[1]
-                    port = params[4].split("=")[1]
-                    left = params[5].split("=")[1]
-
-                    info_hash = params[0].split("=")[1]
-                    info_hash = urllib.parse.unquote(info_hash)
-                    info_hash = int(info_hash, 16)
-
-                    data_resp = {}
-                    data_resp["interval"] = 10
-                    data_resp["peers"] = []
-
-                    if downloaded == "0" and left != "0" and self.find(info_hash):
-                        data_resp = self.get_peers(info_hash)
-                    elif downloaded == "0" and left == "0" and not self.find(info_hash):
-                        self.add_peer(peer_id, addr[0], port, info_hash)
-
-                    response = f"HTTP/1.1 200 OK\r\nContent-Length: {len(data_resp)}\r\n\r\n{bencode(data_resp)}"
-
-                    conn.sendall(response.encode())
-
-                    conn.close()
+    def join_pool(self):
+        while True:
+            if len(self.joining_list) > 0:
+                self.join(self.joining_list.pop())
+            time.sleep(5)
 
     def join(self, node_ip, node_port=8001):
         retry_on_connection_refused(
