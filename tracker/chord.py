@@ -28,7 +28,8 @@ CHECK_CONN = 17
 GET_MY_VALUES = 18
 CLEAN_REPLICATES = 19
 
-#TODO Remember the bug when a node left the ring
+# TODO Remember the bug when a node left the ring
+
 
 def getShaRepr(data: str):
     return int.from_bytes(hashlib.sha1(data.encode()).digest())
@@ -64,15 +65,17 @@ class ChordNodeReference:
             print(f"Connection refused in _send_data to {self.ip} with op: {op}")
             logger.debug(f"Connection refused in _send_data to {self.ip} with op: {op}")
             raise
+        except socket.error as e:
+            raise ConnectionRefusedError(
+                f"Unable to reach the host {self.ip}:{self.port}"
+            )
         except Exception as e:
             print(f"Error sending data: {e}")
             logger.debug(f"Error sending data: {e}")
             return b""
 
     def check_conn(self):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.connect((self.ip, self.port))
-            s.sendall(f"{CHECK_CONN},error".encode("utf-8"))
+        self._send_data(CHECK_CONN)
 
     def update_reference(self, node: "ChordNodeReference"):
         self.id = node.id
@@ -169,6 +172,7 @@ class ChordNode:
         self.succ_list = []  # List of successors
         self.values: dict = values  # Value stored in this node
         self.replicates = {}
+        self.is_stabilizing = False
 
         logger.debug(f"Fixing fingers")
         threading.Thread(
@@ -216,6 +220,7 @@ class ChordNode:
     def join(self, node: "ChordNodeReference"):
         """Join a Chord network using 'node' as an entry point."""
         if node:
+            print(f"Joining to my succ -> {node}")
             succ = node.find_successor(self.id)
             if succ.ip != self.ip:
                 self.change_succ(succ)
@@ -225,6 +230,7 @@ class ChordNode:
         while True:
             # print('Estabilizing')
             try:
+                self.is_stabilizing = True
                 # self.succ.check_conn()
                 x = self.succ.pred
                 if x.id != self.id:
@@ -244,6 +250,7 @@ class ChordNode:
             # print(self.succ_list)
             print(f"successor : {self.succ}, predecessor: {self.pred}")
 
+            self.is_stabilizing = False
             time.sleep(10)
 
     def notify(self, node: "ChordNodeReference"):
@@ -271,8 +278,10 @@ class ChordNode:
         while True:
             # print('Checking predecessor')
             try:
+                print(f"Cheking predecessor -> {self.pred}")
                 if self.pred:
                     self.pred.check_conn()
+                    print("Papi pase por aqui")
             except ConnectionRefusedError as e:
                 try:
                     # rep = self.replicates[self.pred.id]
@@ -287,6 +296,8 @@ class ChordNode:
                 except Exception:
                     print(f"Error in check predecessor: {e}")
                 self.pred = None
+            except Exception as e:
+                print(f"Error in check_predecessor {e}")
             time.sleep(10)
 
     def find(self, key: int):
