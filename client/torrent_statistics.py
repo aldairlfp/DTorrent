@@ -63,7 +63,7 @@ class torrent_statistics():
         time = (self.event_end_time - self.event_start_time) / 2
 
         piece_size_kb = piece_size / (2 ** 10)
-        self.download_rate = round(piece_size_kb / time, 2)
+        self.download_rate = round(piece_size_kb / time if time != 0 else 0.1, 2)
         
         # update the downloaded piece set
         self.downloaded.add(piece_index)

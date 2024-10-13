@@ -201,7 +201,10 @@ class swarm():
             self.torrent.statistics.update_download_rate(piece, self.torrent.piece_length)
             self.torrent_stats_logger.log(self.torrent.statistics.get_download_statistics())
             # release the lock after downloading
-            self.swarm_lock.release() 
+            self.swarm_lock.release()
+            ####
+            ### 
+            
 
     """
         piece selection stratergy is completely based on the bittorrent client
@@ -295,9 +298,9 @@ class swarm():
                 # extract the connection socket and IP address of connection
                 peer_socket, peer_address = recieved_connection
                 peer_IP, peer_port = peer_address
-                # make peer class object  
+                # make peer class object
                 peer_object = peer(peer_IP, peer_port, self.torrent, peer_socket)
-                peer_object.set_bitfield() 
+                peer_object.set_bitfield()
                 peer_object.add_file_handler(self.file_handler)
                 # start uploading file pieces to this peer
                 Thread(target = self.upload_file, args=(peer_object,)).start()
