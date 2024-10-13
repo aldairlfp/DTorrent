@@ -11,7 +11,7 @@ class file_io:
     # initializes the file descripter
     def __init__(self, file_path):
         # file descriptor
-        self.file_descriptor = os.open(file_path, os.O_RDWR | os.O_CREAT)
+        self.file_descriptor = os.open(file_path, os.O_RDWR | os.O_CREAT | os.O_BINARY)
 
     # writes in file given bitstream
     def write(self, byte_stream):

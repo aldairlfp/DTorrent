@@ -29,6 +29,7 @@ from PyQt5.uic import loadUi
 from client.resources_rc import *
 from bcoding import bdecode, bencode
 
+from client.torrent import torrent
 from client.client import bittorrent_client
 from create_torrent2 import create_torrent
 from client.utils import *
@@ -60,6 +61,17 @@ class TorrentClientApp(QMainWindow):
 
         self.server_address = socket.gethostbyname(socket.gethostname())
         self.client: bittorrent_client = bittorrent_client()
+
+        for torrent in self.client.downloading_torrents:
+            threading.Thread(target=self.update_progress_bar, args=(torrent,), daemon=True).start()
+
+    def update_progress_bar(self, torrent):
+        while True:
+            item4 = QTableWidgetItem()
+            if item4:
+                item4.setData(Qt.UserRole + 1000, torrent.statistics.file_downloading_percentage)
+            time.sleep(1)
+
 
     def _exit_threads(self):
         self.peers_manager.is_active = False
@@ -114,7 +126,7 @@ class TorrentClientApp(QMainWindow):
         self.client.set_dowloading('downloads/')
         self.add_torrent_to_main_window(self.client.downloading_torrents[-1])
 
-    def add_torrent_to_main_window(self, torrent):
+    def add_torrent_to_main_window(self, torrent:torrent):
         row_count = self.tableProgress.rowCount()
         self.tableProgress.insertRow(row_count)
         row_count += 1
@@ -126,10 +138,10 @@ class TorrentClientApp(QMainWindow):
         # torrent.select_files(checked_elements)
         item3 = QTableWidgetItem(transform_length(torrent.torrent_metadata.file_size))
 
-        # delegate = ProgressDelegate(self.tableProgress)
-        # self.tableProgress.setItemDelegateForColumn(3, delegate)
+        delegate = ProgressDelegate(self.tableProgress)
+        self.tableProgress.setItemDelegateForColumn(3, delegate)
         item4 = QTableWidgetItem()
-        item4.setData(Qt.UserRole + 1000, 0)
+        item4.setData(Qt.UserRole + 1000, torrent.statistics.file_downloading_percentage)
 
         item1.setTextAlignment(Qt.AlignCenter)
         item2.setTextAlignment(Qt.AlignCenter)
@@ -141,6 +153,18 @@ class TorrentClientApp(QMainWindow):
         self.tableProgress.setItem(row_count - 1, 3, item4)
         
         self.client.init_download()
+
+class ProgressDelegate(QStyledItemDelegate):
+    def paint(self, painter, option, index):
+        progress = index.data(Qt.UserRole + 1000)
+        opt = QStyleOptionProgressBar()
+        opt.rect = option.rect
+        opt.minimum = 0
+        opt.maximum = 100
+        opt.progress = int(progress)
+        opt.text = "{}%".format(progress)
+        opt.textVisible = True
+        QApplication.style().drawControl(QStyle.CE_ProgressBar, opt, painter)
 
 
 def main():
