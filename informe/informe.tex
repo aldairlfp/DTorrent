@@ -1,0 +1,31 @@
+\documentclass[a4paper,12pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{geometry}
+\geometry{margin=1in}
+
+\title{Informe del proyecto: BitTorrent}
+\author{Jesús Aldair Alfonso Pérez \\ Mauro Bolado Vizoso\\ Facultad de Matématica y Computación \\ Universidad de la Habana}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\newpage
+
+\section{Cliente}
+
+Un Cliente BitTorrent es un peer que sirve y descarga archivos. Una vez que un cliente tiene una parte de un archivo inmediatamente este la comparte en la red para que otros clientes puedan descargar de \'el dicha pieza. Cuando un cliente comienza una descarga, crea una instancia de la clase PieceManager, clase que se encarga de manejar las piezas que el cliente descarga y sirve, de un archivo determinado.
+
+\section{Tracker}
+
+Servidor encargado de guardar informaci\'on sobre que peer contiene que archivo, o parte del archivo. Los clientes BitTorrent hacen peticiones a estos servidores
+para saber que peer contiene, tentativamente, partes del archivo. El Tracker responder\'a a estas peticiones con una lista de tuplas (IP, Puerto) de peers a los
+cuales el cliente se puede conectar para lograr su objetivo, entre ellos, el peer
+que tiene el archivo completo. La l\'ogica de esta entidad es implementada en la
+clase Tracker del archivo tracker.py.
+
+\end{document}
