@@ -20,7 +20,7 @@ def list_files_in_directory(directory_path):
     for item in os.listdir(directory_path):
         full_path = os.path.join(directory_path, item)
         if os.path.isfile(full_path):
-            files_list.append(item)
+            files_list.append(full_path)
 
     return files_list
 
