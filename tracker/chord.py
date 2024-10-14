@@ -214,7 +214,11 @@ class ChordNode:
     def find_pred(self, id: int) -> "ChordNodeReference":
         node = self
         while not self._inbetween(id, node.id, node.succ.id):
-            node = node.closest_preceding_finger(id)
+            cpf = node.closest_preceding_finger(id)
+            if cpf.id == node.id:
+                break
+            else:
+                node = cpf
         return node
 
     def closest_preceding_finger(self, id: int) -> "ChordNodeReference":
@@ -271,14 +275,21 @@ class ChordNode:
     def fix_fingers(self):
         """Regularly refresh finger table entries."""
         while True:
-            # print('Fixing fingers')
             try:
-                i = random.randint(0, self.m - 1)
-                self.next = (self.id + 2**i) % (2**self.m)
-                self.finger[i] = self.find_succ(self.next)
+                for i in range(
+                    self.m - 1, -1, -1
+                ):  # Iterate backwards through the finger table
+                    self.next = (self.id + 2**i) % (2**self.m)
+                    self.finger[i] = self.find_succ(self.next)
+                    logger.debug(f"Updated finger[{i}] to {self.finger[i]}")
+                    time.sleep(1)
+
+                time.sleep(10)  # Sleep after updating all fingers
+
             except Exception as e:
                 print(f"Error in fix fingers: {e}")
-            time.sleep(10)
+                logger.error(f"Error in fix fingers: {e}")
+                time.sleep(5)  # Wait before retrying to avoid rapid failure loops
 
     def check_predecessor(self):
         while True:
@@ -287,7 +298,6 @@ class ChordNode:
                 print(f"Cheking predecessor -> {self.pred}")
                 if self.pred:
                     self.pred.check_conn()
-                    print("Papi pase por aqui")
             except ConnectionRefusedError as e:
                 try:
                     # rep = self.replicates[self.pred.id]
@@ -347,8 +357,6 @@ class ChordNode:
         return hashs
 
     def save_replic(self, key, value):
-        # if not owner in self.replicates:
-        # self.replicates[owner] = {}
 
         # Check if the key exists and if the value is already the same
         if key in self.replicates and self.replicates[key] == value:
