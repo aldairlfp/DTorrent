@@ -107,8 +107,12 @@ class TorrentClientApp(QMainWindow):
                 "Información",
                 f"Archivo seleccionado: {file_name}\nLista de Anuncios: {announce_list}",
             )
-            create_torrent(file_name,[announce_list])
-            torrent_path = os.path.abspath(file_name) + '.torrent'
+            torrent_folder_path = 'client\\torrents'
+
+            create_torrent(file_name,[announce_list], output=torrent_folder_path)
+            splitted = file_name.split('/')
+
+            torrent_path = os.path.join(torrent_folder_path, splitted[-1]) + '.torrent'
             self.client.set_torrent(torrent_path, 'seed')
             self.client.set_seeding(file_name)
             self.client.init_upload()
