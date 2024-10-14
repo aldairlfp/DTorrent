@@ -68,9 +68,11 @@ class TorrentClientApp(QMainWindow):
         while True:
             for i, torrent in enumerate(self.client.downloading_torrents):
                 item = self.tableProgress.item(i, 3)
+                if torrent.statistics.file_downloading_percentage > 0:
+                    print(torrent.statistics.file_downloading_percentage)
                 if item:
                     item.setData(
-                        Qt.UserRole + 1000, torrent.file_downloading_percentage
+                        Qt.UserRole + 1000, torrent.statistics.file_downloading_percentage
                     )
                 self.tableProgress.update()
             time.sleep(1)
@@ -109,9 +111,13 @@ class TorrentClientApp(QMainWindow):
                 "Información",
                 f"Archivo seleccionado: {file_name}\nLista de Anuncios: {announce_list}",
             )
-            create_torrent(file_name, [announce_list])
-            torrent_path = os.path.abspath(file_name) + ".torrent"
-            self.client.set_torrent(torrent_path, "seed")
+            torrent_folder_path = 'client\\torrents'
+
+            create_torrent(file_name,[announce_list], force=True, output=torrent_folder_path)
+            splitted = file_name.split('/')
+
+            torrent_path = os.path.join(torrent_folder_path, splitted[-1]) + '.torrent'
+            self.client.set_torrent(torrent_path, 'seed')
             self.client.set_seeding(file_name)
             self.client.init_upload()
 

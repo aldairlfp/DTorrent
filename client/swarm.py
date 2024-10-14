@@ -42,7 +42,7 @@ class swarm():
         self.bitfield_pieces_count = dict()
 
         # selecting the top N peers / pieces
-        self.top_n = self.torrent.client_request['max peers']
+        self.top_n = min(len(self.peers_list), self.torrent.client_request['max peers'])
 
         # peers logger object
         self.swarm_logger = torrent_logger('swarm', SWARM_LOG_FILE, DEBUG)
@@ -239,8 +239,8 @@ class swarm():
     """
     def peer_selection_startergy(self):
         # used for AWS Cloud test
-        if self.torrent.client_request['AWS']:
-            return [self.select_specific_peer()]
+        # if self.torrent.client_request['AWS']:
+        #     return [self.select_specific_peer()]
         # select random peers untill you have some pieces
         if len(self.bitfield_pieces_downloaded) < self.minimum_pieces:
             return self.select_random_peers()

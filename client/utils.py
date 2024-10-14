@@ -9,6 +9,20 @@ import urllib
 import requests
 
 
+def get_fname_from_path(path: str):
+    splitted = path.split('/')
+
+    return splitted[-1]
+
+def list_files_in_directory(directory_path):
+    files_list = []
+
+    for item in os.listdir(directory_path):
+        full_path = os.path.join(directory_path, item)
+        if os.path.isfile(full_path):
+            files_list.append(item)
+
+    return files_list
 
 def transform_length(file_size):
     if file_size >= 1024 * 1024 * 1024:
