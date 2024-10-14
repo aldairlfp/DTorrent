@@ -5,8 +5,9 @@ import time
 import bencodepy
 from bcoding import bencode
 import urllib
-
+import shutil
 import requests
+from pathlib import Path
 
 
 def get_fname_from_path(path: str):
@@ -20,9 +21,23 @@ def list_files_in_directory(directory_path):
     for item in os.listdir(directory_path):
         full_path = os.path.join(directory_path, item)
         if os.path.isfile(full_path):
-            files_list.append(item)
+            files_list.append(full_path)
 
     return files_list
+
+def move_from_to(file_name, origin, destiny):
+    Path(destiny).mkdir(parents=True, exist_ok=True)
+    path = os.path.join(destiny, file_name)
+
+    try:
+        shutil.copy(origin, destiny)
+    except:
+        pass
+
+def configure_uploads(upload_path, config_path):
+    with open(config_path, 'w') as file:
+        file.write(str(upload_path))
+
 
 def transform_length(file_size):
     if file_size >= 1024 * 1024 * 1024:

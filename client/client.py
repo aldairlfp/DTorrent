@@ -1,6 +1,6 @@
 import sys
 
-from threading import *
+from threading import Thread
 
 # torrent file hander module for reading .torrent files
 from client.torrent_file_handler import torrent_file_reader
@@ -21,6 +21,8 @@ from client.shared_file_handler import torrent_shared_file_handler
 from client.torrent_logger import *
 
 from client.utils import *
+
+from pathlib import Path
 
 TORRENT_FILE_PATH = "torrent_file_path"
 DOWNLOAD_DIR_PATH = "download_directory_path"
@@ -79,6 +81,8 @@ class bittorrent_client:
 
         self.download_swarms = []
         self.seed_swarms = []
+
+        self.try_load()
 
         if user_arguments:
             torrent_file_path = user_arguments[TORRENT_FILE_PATH]
@@ -280,7 +284,8 @@ class bittorrent_client:
         self._init_swarm()
         
         Thread(target = self._download, args=(index,)).start()
-        fname = self.download_torrents_path[index].split('\\')[-1][:-8]
+
+        # fname = self.download_torrents_path[index].split('\\')[-1][:-8]
 
         # self._autorun(self.download_torrents_path[index], os.path.join(self.downloading[index], fname))
 
@@ -344,12 +349,12 @@ class bittorrent_client:
         dir_path = []
 
         for path in files_path:
-            splitted = path.split('/')
+            splitted = path.split('\\')
             if splitted[-1] == 'dir.txt':
                 with open(path, 'r') as file:
                     lines = file.readlines()
                     for line in lines:
-                        dir_path.append(os.path(str(line)))
+                        dir_path.append(str(line))
 
                 continue
             
@@ -363,8 +368,18 @@ class bittorrent_client:
                 self._autorun(path, dir_path[i])
 
     def _autorun(self, tpath, fpath):
+        fname = tpath.split('\\')[-1]
+
+        move_from_to(fname, tpath, torrent_folder_path)
+        cpath = os.path.join(torrent_folder_path, 'dir.txt')
+        configure_uploads(fpath, cpath)
+
         self.set_torrent(tpath, 'seed')
         self.set_seeding(fpath)
         self.init_upload()
 
+    def _init_download(self, tpath, fpath):
+        self.set_torrent(tpath)
+        self.set_dowloading(fpath)
+        self.init_download()
     

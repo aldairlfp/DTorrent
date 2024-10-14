@@ -66,13 +66,11 @@ class TorrentClientApp(QMainWindow):
 
     def update_progress_bar(self):
         while True:
-            for i, torrent in enumerate(self.client.downloading_torrents):
+            for i, torrent in enumerate(self.client.download_swarms):
                 item = self.tableProgress.item(i, 3)
-                if torrent.statistics.file_downloading_percentage > 0:
-                    print(torrent.statistics.file_downloading_percentage)
                 if item:
                     item.setData(
-                        Qt.UserRole + 1000, torrent.statistics.file_downloading_percentage
+                        Qt.UserRole + 1000, torrent.torrent.statistics.file_downloading_percentage
                     )
                 self.tableProgress.update()
             time.sleep(1)
@@ -103,7 +101,8 @@ class TorrentClientApp(QMainWindow):
         )
 
         if not announce_list:
-            announce_list = "http://192.168.43.155:8000"
+            # announce_list = "http://192.168.43.155:8000"
+            announce_list = "http://192.168.129.142:8000"
         if ok and announce_list:
             # Aquí puedes manejar la creación del torrent usando el archivo y la lista de anuncios
             QMessageBox.information(
@@ -117,9 +116,7 @@ class TorrentClientApp(QMainWindow):
             splitted = file_name.split('/')
 
             torrent_path = os.path.join(torrent_folder_path, splitted[-1]) + '.torrent'
-            self.client.set_torrent(torrent_path, 'seed')
-            self.client.set_seeding(file_name)
-            self.client.init_upload()
+            self.client._autorun(torrent_path, file_name)
 
     def open_file_dialog_to_add_torrent(self):
         options = QFileDialog.Options()
@@ -130,27 +127,29 @@ class TorrentClientApp(QMainWindow):
             "Torrent Files (*.torrent)",
             options=options,
         )
-        self.client.set_torrent(file_path)
-        self.client.set_dowloading("downloads/")
-        self.add_torrent_to_main_window(self.client.downloading_torrents[-1])
+        self.add_torrent_to_main_window(file_path)
 
-    def add_torrent_to_main_window(self, torrent: torrent):
+    def add_torrent_to_main_window(self, path):
         row_count = self.tableProgress.rowCount()
         self.tableProgress.insertRow(row_count)
         row_count += 1
 
+        self.client._init_download(path, 'downloads/')
+
+        mtorrent = self.client.downloading_torrents[-1] 
+
         item1 = QTableWidgetItem(str(row_count))
-        item2 = QTableWidgetItem(torrent.torrent_metadata.file_name)
+        item2 = QTableWidgetItem(mtorrent.torrent_metadata.file_name)
 
         # checked_elements = self.get_checked_elements()
         # torrent.select_files(checked_elements)
-        item3 = QTableWidgetItem(transform_length(torrent.torrent_metadata.file_size))
+        item3 = QTableWidgetItem(transform_length(mtorrent.torrent_metadata.file_size))
 
         delegate = ProgressDelegate(self.tableProgress)
         self.tableProgress.setItemDelegateForColumn(3, delegate)
         item4 = QTableWidgetItem()
         item4.setData(
-            Qt.UserRole + 1000, torrent.statistics.file_downloading_percentage
+            Qt.UserRole + 1000, 0
         )
 
         item1.setTextAlignment(Qt.AlignCenter)
