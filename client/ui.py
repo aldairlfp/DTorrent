@@ -66,15 +66,14 @@ class TorrentClientApp(QMainWindow):
 
     def update_progress_bar(self):
         while True:
-            for i, torrent in enumerate(self.client.downloading_torrents):
+            for i, swarm in enumerate(self.client.download_swarms):
                 item = self.tableProgress.item(i, 3)
-                if torrent.statistics.file_downloading_percentage > 0:
-                    print(torrent.statistics.file_downloading_percentage)
                 if item:
                     item.setData(
-                        Qt.UserRole + 1000, torrent.statistics.file_downloading_percentage
+                        Qt.UserRole + 1000,
+                        swarm.torrent.statistics.file_downloading_percentage,
                     )
-                self.tableProgress.update()
+            self.tableProgress.update()
             time.sleep(1)
 
     def _exit_threads(self):
@@ -103,21 +102,18 @@ class TorrentClientApp(QMainWindow):
         )
 
         if not announce_list:
-            announce_list = "http://192.168.43.155:8000"
+            # announce_list = "http://192.168.129.229:8000"
+            announce_list = "http://127.0.0.1:8000"
         if ok and announce_list:
-            # Aquí puedes manejar la creación del torrent usando el archivo y la lista de anuncios
-            QMessageBox.information(
-                self,
-                "Información",
-                f"Archivo seleccionado: {file_name}\nLista de Anuncios: {announce_list}",
+            torrent_folder_path = "client\\torrents"
+
+            create_torrent(
+                file_name, [announce_list], force=True, output=torrent_folder_path
             )
-            torrent_folder_path = 'client\\torrents'
+            splitted = file_name.split("/")
 
-            create_torrent(file_name,[announce_list], force=True, output=torrent_folder_path)
-            splitted = file_name.split('/')
-
-            torrent_path = os.path.join(torrent_folder_path, splitted[-1]) + '.torrent'
-            self.client.set_torrent(torrent_path, 'seed')
+            torrent_path = os.path.join(torrent_folder_path, splitted[-1]) + ".torrent"
+            self.client.set_torrent(torrent_path, "seed")
             self.client.set_seeding(file_name)
             self.client.init_upload()
 
