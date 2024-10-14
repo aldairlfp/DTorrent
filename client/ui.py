@@ -112,10 +112,12 @@ class TorrentClientApp(QMainWindow):
             )
             splitted = file_name.split("/")
 
-            create_torrent(file_name,[announce_list], force=True, output=torrent_folder_path)
-            splitted = file_name.split('/')
+            create_torrent(
+                file_name, [announce_list], force=True, output=torrent_folder_path
+            )
+            splitted = file_name.split("/")
 
-            torrent_path = os.path.join(torrent_folder_path, splitted[-1]) + '.torrent'
+            torrent_path = os.path.join(torrent_folder_path, splitted[-1]) + ".torrent"
 
             self.client._autorun(torrent_path, file_name)
             # self.client.set_torrent(torrent_path, 'seed')
