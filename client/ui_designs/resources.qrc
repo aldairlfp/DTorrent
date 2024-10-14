@@ -1,0 +1,8 @@
+<RCC>
+  <qresource prefix="tools">
+    <file>icons/file.png</file>
+    <file>icons/folder.png</file>
+    <file>icons/garbage_red.png</file>
+    <file>icons/plus_red.png</file>
+  </qresource>
+</RCC>
