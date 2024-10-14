@@ -62,16 +62,18 @@ class TorrentClientApp(QMainWindow):
         self.server_address = socket.gethostbyname(socket.gethostname())
         self.client: bittorrent_client = bittorrent_client()
 
-        for torrent in self.client.downloading_torrents:
-            threading.Thread(target=self.update_progress_bar, args=(torrent,), daemon=True).start()
+        threading.Thread(target=self.update_progress_bar, daemon=True).start()
 
-    def update_progress_bar(self, torrent):
+    def update_progress_bar(self):
         while True:
-            item4 = QTableWidgetItem()
-            if item4:
-                item4.setData(Qt.UserRole + 1000, torrent.statistics.file_downloading_percentage)
+            for i, torrent in enumerate(self.client.downloading_torrents):
+                item = self.tableProgress.item(i, 3)
+                if item:
+                    item.setData(
+                        Qt.UserRole + 1000, torrent.file_downloading_percentage
+                    )
+                self.tableProgress.update()
             time.sleep(1)
-
 
     def _exit_threads(self):
         self.peers_manager.is_active = False
@@ -99,7 +101,7 @@ class TorrentClientApp(QMainWindow):
         )
 
         if not announce_list:
-            announce_list = 'http://192.168.43.155:8000'
+            announce_list = "http://192.168.43.155:8000"
         if ok and announce_list:
             # Aquí puedes manejar la creación del torrent usando el archivo y la lista de anuncios
             QMessageBox.information(
@@ -127,10 +129,10 @@ class TorrentClientApp(QMainWindow):
             options=options,
         )
         self.client.set_torrent(file_path)
-        self.client.set_dowloading('downloads/')
+        self.client.set_dowloading("downloads/")
         self.add_torrent_to_main_window(self.client.downloading_torrents[-1])
 
-    def add_torrent_to_main_window(self, torrent:torrent):
+    def add_torrent_to_main_window(self, torrent: torrent):
         row_count = self.tableProgress.rowCount()
         self.tableProgress.insertRow(row_count)
         row_count += 1
@@ -145,7 +147,9 @@ class TorrentClientApp(QMainWindow):
         delegate = ProgressDelegate(self.tableProgress)
         self.tableProgress.setItemDelegateForColumn(3, delegate)
         item4 = QTableWidgetItem()
-        item4.setData(Qt.UserRole + 1000, torrent.statistics.file_downloading_percentage)
+        item4.setData(
+            Qt.UserRole + 1000, torrent.statistics.file_downloading_percentage
+        )
 
         item1.setTextAlignment(Qt.AlignCenter)
         item2.setTextAlignment(Qt.AlignCenter)
@@ -155,8 +159,9 @@ class TorrentClientApp(QMainWindow):
         self.tableProgress.setItem(row_count - 1, 1, item2)
         self.tableProgress.setItem(row_count - 1, 2, item3)
         self.tableProgress.setItem(row_count - 1, 3, item4)
-        
+
         self.client.init_download()
+
 
 class ProgressDelegate(QStyledItemDelegate):
     def paint(self, painter, option, index):
