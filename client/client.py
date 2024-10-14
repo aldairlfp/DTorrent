@@ -20,6 +20,8 @@ from client.shared_file_handler import torrent_shared_file_handler
 # torrent logger module for execution logging
 from client.torrent_logger import *
 
+from client.utils import *
+
 TORRENT_FILE_PATH = "torrent_file_path"
 DOWNLOAD_DIR_PATH = "download_directory_path"
 SEEDING_DIR_PATH = "seeding_directory_path"
@@ -27,6 +29,8 @@ MAX_PEERS = "max_peers"
 RATE_LIMIT = "rate_limit"
 AWS = "AWS"
 CREATE_TORRENT = "create_torrent"
+
+torrent_folder_path = 'client\\torrents'
 
 """
     Torrent client would help interacting with the tracker server and
@@ -62,6 +66,7 @@ class bittorrent_client:
             "max peers": 4,
             "AWS": False,
         }
+
 
         self.seeding_torrents = []
         self.downloading_torrents = []
@@ -275,6 +280,9 @@ class bittorrent_client:
         self._init_swarm()
         
         Thread(target = self._download, args=(index,)).start()
+        fname = self.download_torrents_path[index].split('\\')[-1][:-8]
+
+        # self._autorun(self.download_torrents_path[index], os.path.join(self.downloading[index], fname))
 
     def init_upload(self):
         index = len(self.seeding) - 1
@@ -329,5 +337,34 @@ class bittorrent_client:
             peers_data["peers"] = []
             self.seed_swarms.append(swarm(peers_data, self.torrent))
 
+    def try_load(self):
+        files_path = list_files_in_directory(torrent_folder_path)
 
+        torrents = []
+        dir_path = []
+
+        for path in files_path:
+            splitted = path.split('/')
+            if splitted[-1] == 'dir.txt':
+                with open(path, 'r') as file:
+                    lines = file.readlines()
+                    for line in lines:
+                        dir_path.append(os.path(str(line)))
+
+                continue
             
+            splitted = path.split('.')
+
+            if splitted[-1] == 'torrent':
+                torrents.append(path)
+
+        if len(torrents) == len(dir_path):
+            for i, path in enumerate(torrents):
+                self._autorun(path, dir_path[i])
+
+    def _autorun(self, tpath, fpath):
+        self.set_torrent(tpath, 'seed')
+        self.set_seeding(fpath)
+        self.init_upload()
+
+    

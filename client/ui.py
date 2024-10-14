@@ -68,9 +68,11 @@ class TorrentClientApp(QMainWindow):
         while True:
             for i, torrent in enumerate(self.client.downloading_torrents):
                 item = self.tableProgress.item(i, 3)
+                if torrent.statistics.file_downloading_percentage > 0:
+                    print(torrent.statistics.file_downloading_percentage)
                 if item:
                     item.setData(
-                        Qt.UserRole + 1000, torrent.file_downloading_percentage
+                        Qt.UserRole + 1000, torrent.statistics.file_downloading_percentage
                     )
                 self.tableProgress.update()
             time.sleep(1)
@@ -111,7 +113,7 @@ class TorrentClientApp(QMainWindow):
             )
             torrent_folder_path = 'client\\torrents'
 
-            create_torrent(file_name,[announce_list], output=torrent_folder_path)
+            create_torrent(file_name,[announce_list], force=True, output=torrent_folder_path)
             splitted = file_name.split('/')
 
             torrent_path = os.path.join(torrent_folder_path, splitted[-1]) + '.torrent'
