@@ -49,7 +49,7 @@ class TrackerServerHandlerRequests(BaseHTTPRequestHandler):
         if (
             # downloaded == "0"
             left == "0"
-            and not self.server.tracker_server.find(info_hash)
+            # and not self.server.tracker_server.find(info_hash)
         ):
             self.server.tracker_server.add_peer(
                 peer_id, self.client_address[0], port, info_hash

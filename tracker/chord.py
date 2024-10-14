@@ -48,6 +48,7 @@ class ChordNodeReference:
         print(f"Send data {self.ip} with op -> {op}")
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(5)
                 s.connect((self.ip, self.port))
                 s.sendall(f"{op},{data}".encode("utf-8"))
                 logger.debug(f"Data sent succesfuly to {self.ip}:{self.port}")
@@ -60,7 +61,7 @@ class ChordNodeReference:
                 return response
         # except socket.error as e:
         #     if e.errno == 104:
-        #         raise ConnectionRefusedError("Socket reset conn")
+        #         raise ConnectionRefusedError("Socket reset conn"
         except ConnectionRefusedError as e:
             print(f"Connection refused in _send_data to {self.ip} with op: {op}")
             logger.debug(f"Connection refused in _send_data to {self.ip} with op: {op}")
@@ -68,6 +69,11 @@ class ChordNodeReference:
         except socket.error as e:
             raise ConnectionRefusedError(
                 f"Unable to reach the host {self.ip}:{self.port}"
+            )
+        except socket.timeout:
+            logger.debug(f"Timeout while trying to send data to {self.ip}:{self.port}")
+            raise ConnectionRefusedError(
+                "Timeout while trying to send data to {self.ip}:{self.port}"
             )
         except Exception as e:
             print(f"Error sending data: {e}")
@@ -447,7 +453,13 @@ class ChordNode:
                             if key not in self.values:
                                 self.values[key] = [value]
                             else:
-                                self.values[key] += [value]
+                                exist = False
+                                for i, (k, v) in enumerate(self.values.items()):
+                                    if v[i][1] == value[1]:
+                                        exist = True
+                                        break
+                                if not exist:
+                                    self.values[key] += [value]
 
                             # print(f'Data with Key: {key} saved succesfuly in Node: {self.id}')
 
